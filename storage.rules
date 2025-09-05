@@ -1,0 +1,11 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Allow authenticated users to read and write all files
+    // This is a personal app, so the authenticated user owns all data
+    match /{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
