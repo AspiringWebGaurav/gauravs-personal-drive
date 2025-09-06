@@ -1,27 +1,36 @@
-'use client'
+"use client";
 
-import { useAuth } from '@/components/providers/AuthProvider'
-import { ThemeToggle } from '@/components/ThemeToggle'
-import { Button } from '@/components/ui/button'
-import { MobileStorageIndicator } from './MobileStorageIndicator'
-import { 
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/components/providers/AuthProvider";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { Button } from "@/components/ui/button";
+import { MobileStorageIndicator } from "./MobileStorageIndicator";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { LogOut, Settings, User, HardDrive } from 'lucide-react'
-import { getUserDisplayName, getUserInitials } from '@/lib/auth'
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { LogOut, Settings, User, HardDrive } from "lucide-react";
+import { getUserDisplayName, getUserInitials } from "@/lib/auth";
 
 export function Navbar() {
-  const { user, signOut } = useAuth()
+  const router = useRouter();
+  const { user, signOut } = useAuth();
 
   const handleSignOut = async () => {
-    await signOut()
-  }
+    try {
+      await signOut();
+      router.push("/login");
+    } catch (e) {
+      // Optional: surface a toast here
+      console.error("Failed to sign out", e);
+    }
+  };
 
   return (
     <nav className="sticky top-0 z-50 w-full border-b border-white/20 dark:border-white/10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg">
@@ -40,54 +49,85 @@ export function Navbar() {
           </div>
 
           {/* Right side - Mobile storage, Theme toggle and User menu */}
-          <div className="flex items-center space-x-3">
+          <div className="ml-auto flex items-center space-x-3">
             <MobileStorageIndicator />
             <ThemeToggle />
-            
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative h-10 w-10 rounded-full p-0 glass-button">
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage src={user?.photoURL} alt={getUserDisplayName(user)} />
-                    <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white">
-                      {getUserInitials(user)}
-                    </AvatarFallback>
-                  </Avatar>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-56 glass-card" align="end" forceMount>
-                <DropdownMenuLabel className="font-normal">
-                  <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium leading-none">
-                      {getUserDisplayName(user)}
-                    </p>
-                    <p className="text-xs leading-none text-muted-foreground">
-                      {user?.email}
-                    </p>
-                  </div>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem className="cursor-pointer">
-                  <User className="mr-2 h-4 w-4" />
-                  <span>Profile</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem className="cursor-pointer">
-                  <Settings className="mr-2 h-4 w-4" />
-                  <span>Settings</span>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem 
-                  className="cursor-pointer text-red-600 dark:text-red-400"
-                  onClick={handleSignOut}
+
+            {user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    className="relative h-10 w-10 rounded-full p-0 glass-button"
+                    aria-label="Open account menu"
+                  >
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage
+                        src={user?.photoURL ?? undefined}
+                        alt={getUserDisplayName(user)}
+                      />
+                      <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white">
+                        {getUserInitials(user)}
+                      </AvatarFallback>
+                    </Avatar>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  className="w-56 glass-card"
+                  align="end"
+                  forceMount
                 >
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>Sign out</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-sm font-medium leading-none">
+                        {getUserDisplayName(user)}
+                      </p>
+                      <p className="text-xs leading-none text-muted-foreground break-all">
+                        {user?.email}
+                      </p>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+
+                  {/* Profile */}
+                  <DropdownMenuItem asChild className="cursor-pointer">
+                    <Link href="/account" aria-label="Go to profile">
+                      <User className="mr-2 h-4 w-4" />
+                      <span>Profile</span>
+                    </Link>
+                  </DropdownMenuItem>
+
+                  {/* Settings */}
+                  <DropdownMenuItem asChild className="cursor-pointer">
+                    <Link href="/settings" aria-label="Go to settings">
+                      <Settings className="mr-2 h-4 w-4" />
+                      <span>Settings</span>
+                    </Link>
+                  </DropdownMenuItem>
+
+                  <DropdownMenuSeparator />
+
+                  {/* Sign out */}
+                  <DropdownMenuItem
+                    className="cursor-pointer text-red-600 dark:text-red-400"
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      handleSignOut();
+                    }}
+                  >
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Sign out</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Button asChild variant="outline" className="glass-button">
+                <Link href="/login">Sign in</Link>
+              </Button>
+            )}
           </div>
         </div>
       </div>
     </nav>
-  )
+  );
 }

@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { useRequireAuth } from "@/components/providers/AuthProvider";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useRequireAuth, useAuth } from "@/components/providers/AuthProvider";
 import { useSwipeGesture } from "@/hooks/useSwipeGesture";
 import {
   collection,
@@ -15,21 +17,37 @@ import {
   onSnapshotWithRetry,
   handleFirestoreError,
 } from "@/lib/firestoreHelpers";
-// Navbar intentionally removed to reclaim vertical space
 import { UploadArea } from "@/components/dashboard/UploadArea";
 import { FileList } from "@/components/dashboard/FileList";
 import { UsageBar } from "@/components/dashboard/UsageBar";
 import { ViewToggle } from "@/components/dashboard/ViewToggle";
-// Breadcrumb removed
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { CreateFolderDialog } from "@/components/dashboard/CreateFolderDialog";
 import { Button } from "@/components/ui/button";
-import { FolderPlus, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { MobileStorageIndicator } from "@/components/dashboard/MobileStorageIndicator";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import {
+  FolderPlus,
+  ChevronLeft,
+  ChevronRight,
+  LogOut,
+  Settings,
+  User,
+} from "lucide-react";
 import { toast } from "sonner";
 import { useNotification } from "@/components/providers/NotificationProvider";
 import { logger } from "@/lib/logger";
-import { MobileStorageIndicator } from "@/components/dashboard/MobileStorageIndicator";
+import { getUserDisplayName, getUserInitials } from "@/lib/auth";
 
 interface FileData extends DocumentData {
   id: string;
@@ -60,7 +78,9 @@ type PageSlice = {
 };
 
 export default function DashboardPage() {
+  const router = useRouter();
   const { user, loading: authLoading, isTokenReady } = useRequireAuth();
+  const { signOut } = useAuth();
   const { showSuccess } = useNotification();
 
   // Data
@@ -266,6 +286,17 @@ export default function DashboardPage() {
     });
   }, [showSuccess]);
 
+  // Auth actions
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      router.push("/login");
+    } catch (e) {
+      console.error("Failed to sign out", e);
+      toast.error("Sign out failed. Try again.");
+    }
+  };
+
   // combine + paginate (folders first)
   const combinedItems = useMemo(() => [...folders, ...files], [folders, files]);
 
@@ -301,22 +332,16 @@ export default function DashboardPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [canPrev, canNext, slice.pageCount]);
 
-  /**
-   * MOBILE INTERACTIONS
-   * - Long press: EXACT 3s to open "More actions"
-   * - Folder open: require DOUBLE-TAP (single tap blocked) on mobile
-   */
+  // --- Mobile interactions (unchanged) ---
   useEffect(() => {
     const el = canvasScrollRef.current;
     if (!el) return;
-
     const looksMobile =
       (typeof window !== "undefined" &&
         window.matchMedia &&
         window.matchMedia("(pointer: coarse)").matches) ||
       (typeof navigator !== "undefined" && navigator.maxTouchPoints > 0) ||
       (typeof window !== "undefined" && "ontouchstart" in window);
-
     if (!(looksMobile && window.innerWidth <= 1024)) return;
 
     const isFolderCard = (start: HTMLElement | null): HTMLElement | null => {
@@ -370,7 +395,7 @@ export default function DashboardPage() {
     };
 
     const fireMouseSequence = (node: HTMLElement) => {
-      const init = { bubbles: true, cancelable: true };
+      const init = { bubbles: true, cancelable: true } as MouseEventInit;
       node.dispatchEvent(new MouseEvent("mousedown", init));
       node.dispatchEvent(new MouseEvent("mouseup", init));
       node.dispatchEvent(new MouseEvent("click", init));
@@ -389,9 +414,7 @@ export default function DashboardPage() {
         node.dispatchEvent(
           new MouseEvent("click", { bubbles: true, cancelable: true })
         );
-      } catch {
-        /* older Safari? mouse sequence already sent */
-      }
+      } catch {}
     };
 
     const fireContextMenuAt = (node: HTMLElement, x: number, y: number) => {
@@ -416,7 +439,7 @@ export default function DashboardPage() {
         (trigger as HTMLElement).focus?.();
         fireMouseSequence(trigger as HTMLElement);
         firePointerSequence(trigger as HTMLElement);
-        fireContextMenuAt(trigger as HTMLElement, x, y); // fallback
+        fireContextMenuAt(trigger as HTMLElement, x, y);
       } else {
         fireContextMenuAt(target, x, y);
         if (card && card !== target) fireContextMenuAt(card, x, y);
@@ -429,7 +452,7 @@ export default function DashboardPage() {
     let holding = false;
     const MOVE_CANCEL_PX = 25;
     const LONG_PRESS_MS = 3000;
-    const originalTouchAction = el.style.touchAction;
+    const originalTouchAction = (el as HTMLElement).style.touchAction;
 
     let lastTapTime = 0;
     let lastTapCard: HTMLElement | null = null;
@@ -444,7 +467,7 @@ export default function DashboardPage() {
         holdTimer = null;
       }
       if (holding) {
-        el.style.touchAction = originalTouchAction;
+        (el as HTMLElement).style.touchAction = originalTouchAction;
         holding = false;
       }
     };
@@ -457,7 +480,7 @@ export default function DashboardPage() {
       touchStartAt = Date.now();
 
       holding = true;
-      el.style.touchAction = "none";
+      (el as HTMLElement).style.touchAction = "none";
       holdTimer = window.setTimeout(() => {
         try {
           e.preventDefault();
@@ -545,7 +568,7 @@ export default function DashboardPage() {
       el.removeEventListener("touchend", onTouchEnd as any);
       el.removeEventListener("touchcancel", onTouchCancel as any);
       el.removeEventListener("click", onClickCapture as any, true);
-      el.style.touchAction = "";
+      (el as HTMLElement).style.touchAction = "";
     };
   }, []);
 
@@ -588,7 +611,7 @@ export default function DashboardPage() {
 
         <div className="flex items-center gap-2">
           <MobileStorageIndicator />
-          
+
           <CreateFolderDialog
             currentFolder={currentFolder}
             onSuccess={() => {
@@ -615,6 +638,71 @@ export default function DashboardPage() {
             viewMode={viewMode}
             onViewModeChange={handleViewModeChange}
           />
+
+          {/* Theme toggle keeps parity with Navbar feature */}
+          <ThemeToggle />
+
+          {/* RIGHT-END ACCOUNT MENU */}
+          {user ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 rounded-full p-0"
+                  aria-label="Open account menu"
+                >
+                  <Avatar className="h-9 w-9">
+                    <AvatarImage
+                      src={user?.photoURL ?? undefined}
+                      alt={getUserDisplayName(user)} className={undefined}                    />
+                    <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white">
+                      {getUserInitials(user)}
+                    </AvatarFallback>
+                  </Avatar>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56" align="end" forceMount>
+                <DropdownMenuLabel className="font-normal" inset={undefined}>
+                  <div className="flex flex-col space-y-1">
+                    <p className="text-sm font-medium leading-none">
+                      {getUserDisplayName(user)}
+                    </p>
+                    <p className="text-xs leading-none text-muted-foreground break-all">
+                      {user?.email}
+                    </p>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator className={undefined} />
+                <DropdownMenuItem asChild className="cursor-pointer" inset={undefined}>
+                  <Link href="/account" aria-label="Go to profile">
+                    <User className="mr-2 h-4 w-4" />
+                    <span>Profile</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild className="cursor-pointer" inset={undefined}>
+                  <Link href="/settings" aria-label="Go to settings">
+                    <Settings className="mr-2 h-4 w-4" />
+                    <span>Settings</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator className={undefined} />
+                <DropdownMenuItem
+                  className="cursor-pointer text-red-600 dark:text-red-400"
+                  onSelect={(e: { preventDefault: () => void; }) => {
+                    e.preventDefault();
+                    handleSignOut();
+                  } } inset={undefined}                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>Sign out</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Button asChild variant="outline" size="sm" className={undefined}>
+              <Link href="/login">Sign in</Link>
+            </Button>
+          )}
         </div>
       </header>
 
