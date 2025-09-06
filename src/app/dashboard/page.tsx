@@ -9,15 +9,13 @@ import {
   where,
   orderBy,
   DocumentData,
-  limit,
-  startAfter,
 } from "firebase/firestore";
 import { firestore } from "@/lib/firebaseClient";
 import {
   onSnapshotWithRetry,
   handleFirestoreError,
 } from "@/lib/firestoreHelpers";
-import { Navbar } from "@/components/dashboard/Navbar";
+// Navbar intentionally removed to reclaim vertical space
 import { UploadArea } from "@/components/dashboard/UploadArea";
 import { FileList } from "@/components/dashboard/FileList";
 import { UsageBar } from "@/components/dashboard/UsageBar";
@@ -44,7 +42,6 @@ interface FileData extends DocumentData {
   createdAt: any;
   updatedAt?: any;
 }
-
 interface FolderData extends DocumentData {
   id: string;
   name: string;
@@ -53,14 +50,11 @@ interface FolderData extends DocumentData {
   createdAt: any;
   updatedAt?: any;
 }
-
 interface UsageData {
   usedBytes: number;
   limitBytes: number;
 }
-
 type ViewMode = "grid" | "table";
-
 type PageSlice = {
   items: Array<FileData | FolderData>;
   total: number;
@@ -92,15 +86,14 @@ export default function DashboardPage() {
   });
   const uploadAreaTriggerRef = useRef<(() => void) | null>(null);
 
-  // Pagination (click-more, no long-scroll)
+  // Pagination (fits to viewport; no long scroll)
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(18); // will adapt to breakpoint
+  const [pageSize, setPageSize] = useState(18); // adapt to width
 
-  // Adapt pageSize to viewport
+  // Adapt pageSize to viewport width
   useEffect(() => {
     const update = () => {
       const w = window.innerWidth;
-      // tuned for Google Drive–like density
       if (w < 480) setPageSize(8);
       else if (w < 768) setPageSize(12);
       else if (w < 1024) setPageSize(16);
@@ -112,7 +105,6 @@ export default function DashboardPage() {
     return () => window.removeEventListener("resize", update);
   }, []);
 
-  // View mode change
   const handleViewModeChange = (newMode: ViewMode) => {
     logger.ui("Changing view mode", viewMode, "=>", newMode);
     setViewMode(newMode);
@@ -137,7 +129,7 @@ export default function DashboardPage() {
     [allFolders]
   );
 
-  // Fetch all folders (for breadcrumbs + parent nav)
+  // Fetch all folders
   useEffect(() => {
     if (!user || !isTokenReady) return;
     const allFoldersQuery = query(
@@ -258,7 +250,7 @@ export default function DashboardPage() {
   // Navigation helpers
   const handleFolderNavigate = useCallback((folder: FolderData | null) => {
     setCurrentFolder(folder);
-    setPage(1); // reset pagination when folder changes
+    setPage(1);
   }, []);
 
   const navigateToParent = useCallback(() => {
@@ -292,8 +284,6 @@ export default function DashboardPage() {
   const handleRegisterTrigger = useCallback((triggerFn: () => void) => {
     uploadAreaTriggerRef.current = triggerFn;
   }, []);
-
-  // Folder create success handler (for required onSuccess prop)
   const handleCreateFolderSuccess = useCallback(() => {
     toast.success("Folder created!");
     showSuccess("Folder created", "Your new folder is ready.", {
@@ -301,11 +291,8 @@ export default function DashboardPage() {
     });
   }, [showSuccess]);
 
-  // --- CLICK MORE / PAGINATION LOGIC ---
-  const combinedItems = useMemo(() => {
-    // Drive-like ordering: folders first then files, both already time-desc
-    return [...folders, ...files];
-  }, [folders, files]);
+  // combine + paginate (folders first)
+  const combinedItems = useMemo(() => [...folders, ...files], [folders, files]);
 
   const slice: PageSlice = useMemo(() => {
     const total = combinedItems.length;
@@ -323,12 +310,11 @@ export default function DashboardPage() {
 
   const canPrev = slice.page > 1;
   const canNext = slice.page < slice.pageCount;
-
   const handlePrev = () => canPrev && setPage((p) => Math.max(1, p - 1));
   const handleNext = () =>
     canNext && setPage((p) => Math.min(slice.pageCount, p + 1));
 
-  // Keyboard: Left/Right to paginate (table/grid focus area)
+  // Keyboard pagination
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (["INPUT", "TEXTAREA"].includes((e.target as HTMLElement)?.tagName))
@@ -343,7 +329,7 @@ export default function DashboardPage() {
   // --- UI ---
   if (authLoading || !isTokenReady) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="fixed inset-0 w-screen overflow-hidden bg-background flex items-center justify-center">
         <div className="text-center space-y-4">
           <LoadingSpinner />
           <p className="text-sm text-muted-foreground">
@@ -359,7 +345,7 @@ export default function DashboardPage() {
   const hasItems = combinedItems.length > 0;
 
   const PermissionErrorRetry = () => (
-    <div className="bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 sm:p-4">
+    <div className="bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
       <div className="flex items-center gap-3">
         <div className="flex-shrink-0">
           <svg
@@ -395,69 +381,100 @@ export default function DashboardPage() {
   return (
     <div
       ref={swipeRef as any}
-      className="min-h-screen bg-gradient-to-br from-blue-50/50 via-white to-purple-50/50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900"
+      className="fixed inset-0 w-screen overflow-hidden bg-gradient-to-br from-blue-50/50 via-white to-purple-50/50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900"
     >
-      {/* Top app bar */}
-      <Navbar />
-
-      {/* App layout: sticky header + two-rail content + docked footer (usage) */}
-      <div className="mx-auto max-w-[1600px] px-2 sm:px-4 pt-4 pb-24 lg:pb-28">
-        {/* Toolbar row */}
-        <div className="sticky top-0 z-30 -mx-2 sm:-mx-4 px-2 sm:px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-white/60 dark:supports-[backdrop-filter]:bg-gray-900/50 border-b border-border">
-          {permissionError && <PermissionErrorRetry />}
-
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            {/* Left: breadcrumbs */}
-            <FolderBreadcrumb
-              currentFolder={currentFolder}
-              folderHierarchy={folderHierarchy}
-              onNavigate={handleFolderNavigate}
-              onNavigateToParent={navigateToParent}
-            />
-
-            {/* Right: actions */}
-            <div className="flex items-center gap-2">
-              <CreateFolderDialog
-                currentFolder={currentFolder}
-                onSuccess={handleCreateFolderSuccess}
-              >
-                <Button variant="outline" size="sm" className="glass-button">
-                  <FolderPlus className="h-4 w-4 mr-2" /> New Folder
-                </Button>
-              </CreateFolderDialog>
-              <ViewToggle
-                viewMode={viewMode}
-                onViewModeChange={handleViewModeChange}
-              />
-            </div>
+      {/* Compact header (56px) */}
+      <header className="h-14 px-3 sm:px-4 border-b bg-white/90 dark:bg-gray-900/80 backdrop-blur flex items-center justify-between">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="h-8 w-8 rounded-xl bg-indigo-600 text-white grid place-items-center font-bold">
+            G
+          </div>
+          <div className="truncate">
+            <p className="text-[11px] leading-none text-gray-500">Home</p>
+            <h1 className="text-sm sm:text-base font-semibold truncate">
+              Gaurav&apos;s Personal Drive
+            </h1>
           </div>
         </div>
 
-        {/* Main content rails */}
-        <div className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-4 lg:gap-6 mt-4">
-          {/* Left rail (mobile => collapses above) */}
-          <div className="order-2 lg:order-1 space-y-4">
-            <div className="rounded-2xl border bg-card p-3 md:p-4">
-              <UploadArea
-                currentFolder={currentFolder}
-                onUploadComplete={handleUploadComplete}
-                onRegisterTrigger={handleRegisterTrigger}
-              />
-            </div>
+        <div className="flex items-center gap-2">
+          <CreateFolderDialog
+            currentFolder={currentFolder}
+            onSuccess={handleCreateFolderSuccess}
+          >
+            <Button
+              variant="outline"
+              size="sm"
+              className="hidden sm:inline-flex"
+            >
+              <FolderPlus className="h-4 w-4 mr-2" /> New Folder
+            </Button>
+          </CreateFolderDialog>
 
-            <div className="rounded-2xl border bg-card p-3 md:p-4">
-              <UsageBar usage={usage} />
-            </div>
-          </div>
+          {/* ✅ add className */}
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleUploadTrigger}
+            className=""
+          >
+            Upload
+          </Button>
 
-          {/* Right rail: file canvas */}
-          <section className="order-1 lg:order-2 rounded-2xl border bg-card p-0 overflow-hidden">
-            {/* Canvas header: pagination controls */}
-            <div className="flex items-center justify-between gap-2 px-3 sm:px-4 py-2 border-b">
+          <ViewToggle
+            viewMode={viewMode}
+            onViewModeChange={handleViewModeChange}
+          />
+        </div>
+      </header>
+
+      {/* Main fits the rest exactly */}
+      <main className="h-[calc(100svh-56px)] px-3 sm:px-4 py-3 overflow-hidden">
+        <div className="grid h-full grid-cols-12 gap-3 min-h-0">
+          {/* LEFT RAIL — 3-row grid */}
+          <aside className="col-span-12 lg:col-span-3 grid grid-rows-[84px_1fr_132px] gap-3 min-h-0 overflow-hidden">
+            <section className="rounded-2xl border bg-card p-3 overflow-hidden">
+              <div className="h-full min-h-0 overflow-hidden">
+                <FolderBreadcrumb
+                  currentFolder={currentFolder}
+                  folderHierarchy={folderHierarchy}
+                  onNavigate={handleFolderNavigate}
+                  onNavigateToParent={navigateToParent}
+                />
+                {permissionError && (
+                  <div className="mt-2">
+                    <PermissionErrorRetry />
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <section className="rounded-2xl border bg-card p-3 overflow-hidden min-h-0">
+              <div className="h-full min-h-0 overflow-hidden">
+                <UploadArea
+                  currentFolder={currentFolder}
+                  onUploadComplete={handleUploadComplete}
+                  onRegisterTrigger={handleRegisterTrigger}
+                />
+              </div>
+            </section>
+
+            <section className="rounded-2xl border bg-card p-3 overflow-hidden">
+              <div className="h-full min-h-0 overflow-hidden">
+                <UsageBar usage={usage} />
+              </div>
+            </section>
+          </aside>
+
+          {/* FILE CANVAS */}
+          <section className="col-span-12 lg:col-span-9 rounded-2xl border bg-card flex flex-col min-h-0 overflow-hidden">
+            {/* Canvas header (48px) */}
+            <div className="h-12 min-h-12 flex items-center justify-between gap-2 px-3 sm:px-4 border-b">
               <div className="text-xs sm:text-sm text-muted-foreground">
                 {slice.total} items · Page {slice.page} of {slice.pageCount}
               </div>
               <div className="flex items-center gap-1">
+                {/* ✅ add className on chevrons */}
                 <Button
                   variant="ghost"
                   size="icon"
@@ -481,93 +498,84 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="p-2 sm:p-4 min-h-[420px]">
-              {loading ? (
-                <div className="flex justify-center py-16">
-                  <LoadingSpinner />
-                </div>
-              ) : hasItems ? (
-                <FileList
-                  files={slice.items.filter(
-                    (i): i is FileData => (i as any).downloadURL !== undefined
-                  )}
-                  folders={slice.items.filter(
-                    (i): i is FolderData =>
-                      (i as any).parentId !== undefined &&
-                      (i as any).downloadURL === undefined
-                  )}
-                  viewMode={viewMode}
-                  onFolderOpen={handleFolderNavigate}
-                  currentFolder={currentFolder}
-                />
-              ) : (
-                <EmptyState
-                  currentFolder={currentFolder}
-                  onUploadTrigger={handleUploadTrigger}
-                  folderHierarchy={folderHierarchy}
-                  onNavigateHome={() => handleFolderNavigate(null)}
-                  onNavigateToParent={navigateToParent}
-                  onNavigateToFolder={handleFolderNavigate}
-                  enableSwipeNavigation
-                />
-              )}
+            {/* Canvas body */}
+            <div
+              className="flex-1 px-3 sm:px-4 min-h-0 overflow-hidden"
+              style={{ paddingTop: 12, paddingBottom: 12 }}
+            >
+              <div className="w-full h-full">
+                {loading ? (
+                  <div className="h-full w-full grid place-items-center">
+                    <LoadingSpinner />
+                  </div>
+                ) : hasItems ? (
+                  <FileList
+                    files={slice.items.filter(
+                      (i): i is FileData => (i as any).downloadURL !== undefined
+                    )}
+                    folders={slice.items.filter(
+                      (i): i is FolderData =>
+                        (i as any).parentId !== undefined &&
+                        (i as any).downloadURL === undefined
+                    )}
+                    viewMode={viewMode}
+                    onFolderOpen={handleFolderNavigate}
+                    currentFolder={currentFolder}
+                  />
+                ) : (
+                  <div className="h-full w-full">
+                    <EmptyState
+                      currentFolder={currentFolder}
+                      onUploadTrigger={handleUploadTrigger}
+                      folderHierarchy={folderHierarchy}
+                      onNavigateHome={() => handleFolderNavigate(null)}
+                      onNavigateToParent={navigateToParent}
+                      onNavigateToFolder={handleFolderNavigate}
+                      enableSwipeNavigation
+                    />
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* Canvas footer: duplicate pager for ease */}
-            {hasItems && (
-              <div className="flex items-center justify-between gap-2 px-3 sm:px-4 py-2 border-t">
-                <div className="text-xs sm:text-sm text-muted-foreground">
-                  Showing {(slice.page - 1) * pageSize + 1}–
-                  {Math.min(slice.page * pageSize, slice.total)} of{" "}
-                  {slice.total}
-                </div>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handlePrev}
-                    disabled={!canPrev}
-                    className=""
-                  >
-                    Prev
-                  </Button>
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={handleNext}
-                    disabled={!canNext}
-                    className=""
-                  >
-                    Next
-                  </Button>
-                </div>
+            {/* Canvas footer (48px) */}
+            <div className="h-12 min-h-12 flex items-center justify-between gap-2 px-3 sm:px-4 border-t">
+              <div className="text-xs sm:text-sm text-muted-foreground">
+                {hasItems ? (
+                  <>
+                    Showing {(slice.page - 1) * pageSize + 1}–
+                    {Math.min(slice.page * pageSize, slice.total)} of{" "}
+                    {slice.total}
+                  </>
+                ) : (
+                  <>No items</>
+                )}
               </div>
-            )}
+              <div className="flex items-center gap-1">
+                {/* ✅ add className on Prev/Next */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePrev}
+                  disabled={!canPrev}
+                  className=""
+                >
+                  Prev
+                </Button>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleNext}
+                  disabled={!canNext}
+                  className=""
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
           </section>
         </div>
-      </div>
-
-      {/* Mobile action dock (keeps screen scroll minimal) */}
-      <div className="lg:hidden fixed bottom-3 left-0 right-0 z-40 px-3">
-        <div className="mx-auto max-w-md rounded-2xl border bg-background/95 backdrop-blur shadow-lg flex items-center justify-between px-3 py-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={handleUploadTrigger}
-            className="flex-1 mr-2"
-          >
-            Upload
-          </Button>
-          <CreateFolderDialog
-            currentFolder={currentFolder}
-            onSuccess={handleCreateFolderSuccess}
-          >
-            <Button variant="default" size="sm" className="flex-1">
-              New Folder
-            </Button>
-          </CreateFolderDialog>
-        </div>
-      </div>
+      </main>
     </div>
   );
 }
