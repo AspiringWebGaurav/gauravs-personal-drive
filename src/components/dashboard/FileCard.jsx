@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { RenameDialog } from './RenameDialog'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import {
   MoreHorizontal,
   Download,
@@ -29,10 +30,13 @@ import { doc, deleteDoc } from 'firebase/firestore'
 import { ref, deleteObject } from 'firebase/storage'
 import { firestore, storage } from '@/lib/firebaseClient'
 import { toast } from 'sonner'
+import { useNotification } from '@/components/providers/NotificationProvider'
 
 export function FileCard({ file, currentFolder }) {
   const [isLoading, setIsLoading] = useState(false)
   const [showRenameDialog, setShowRenameDialog] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const { showSuccess } = useNotification()
 
   const formatFileSize = (bytes) => {
     if (bytes === 0) return '0 Bytes'
@@ -90,11 +94,11 @@ export function FileCard({ file, currentFolder }) {
     setShowRenameDialog(true)
   }
 
-  const handleDelete = async () => {
-    if (!confirm(`Are you sure you want to delete "${file.filename}"? This action cannot be undone.`)) {
-      return
-    }
+  const handleDelete = () => {
+    setShowDeleteDialog(true)
+  }
 
+  const handleConfirmDelete = async () => {
     setIsLoading(true)
 
     try {
@@ -111,7 +115,14 @@ export function FileCard({ file, currentFolder }) {
         }
       }
 
+      // Close dialog and show success
+      setShowDeleteDialog(false)
       toast.success('File deleted successfully!')
+      showSuccess(
+        'File Deleted',
+        `"${file.filename}" has been deleted successfully`,
+        { autoCloseDuration: 2500 }
+      )
     } catch (error) {
       console.error('Error deleting file:', error)
       toast.error('Failed to delete file. Please try again.')
@@ -188,8 +199,17 @@ export function FileCard({ file, currentFolder }) {
         item={file}
         type="file"
         onSuccess={() => {
-          toast.success('File renamed successfully!')
+          // RenameDialog handles its own notifications now
         }}
+      />
+
+      <ConfirmDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        type="deleteFile"
+        itemName={file.filename}
+        onConfirm={handleConfirmDelete}
+        isLoading={isLoading}
       />
     </Card>
   )

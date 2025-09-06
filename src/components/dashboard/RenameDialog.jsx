@@ -16,16 +16,18 @@ import { Edit3, Loader2 } from 'lucide-react'
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore'
 import { firestore } from '@/lib/firebaseClient'
 import { toast } from 'sonner'
+import { useNotification } from '@/components/providers/NotificationProvider'
 
-export function RenameDialog({ 
-  open, 
-  onOpenChange, 
-  item, 
+export function RenameDialog({
+  open,
+  onOpenChange,
+  item,
   type, // 'file' or 'folder'
-  onSuccess 
+  onSuccess
 }) {
   const [newName, setNewName] = useState(item?.filename || item?.name || '')
   const [isLoading, setIsLoading] = useState(false)
+  const { showSuccess } = useNotification()
 
   const handleRename = async () => {
     if (!newName.trim()) {
@@ -49,7 +51,13 @@ export function RenameDialog({
         updatedAt: serverTimestamp(),
       })
 
+      // Keep toast for immediate feedback, add dialog for completion
       toast.success(`${type === 'file' ? 'File' : 'Folder'} renamed successfully!`)
+      showSuccess(
+        `${type === 'file' ? 'File' : 'Folder'} Renamed`,
+        `"${item?.filename || item?.name}" has been renamed to "${newName.trim()}"`,
+        { autoCloseDuration: 2500 }
+      )
       onOpenChange(false)
       onSuccess?.()
     } catch (error) {

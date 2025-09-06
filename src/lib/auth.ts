@@ -10,21 +10,22 @@ import {
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore'
 import { auth, googleProvider, firestore } from './firebaseClient'
 import type { User } from '@/types'
+import { logger } from '@/lib/logger'
 
 // Auth state management
 export const signInWithGoogle = async () => {
   try {
-    console.log('🔐 Starting Google sign-in...')
+    logger.auth('Starting Google sign-in...')
     const signInStartTime = Date.now()
     const result = await signInWithPopup(auth, googleProvider)
     const user = result.user
-    console.log('✅ Google sign-in successful for user:', user.email, 'in', Date.now() - signInStartTime, 'ms')
+    logger.auth('Google sign-in successful for user:', user.email, 'in', Date.now() - signInStartTime, 'ms')
 
     // Create or update user document in Firestore
-    console.log('📄 Creating/updating user document in Firestore...')
+    logger.auth('Creating/updating user document in Firestore...')
     const userDocRef = doc(firestore, 'users', user.uid)
     const userDoc = await getDoc(userDocRef)
-    console.log('📄 User document exists:', userDoc.exists())
+    logger.auth('User document exists:', userDoc.exists())
 
     const userData: User = {
       uid: user.uid,
@@ -36,13 +37,13 @@ export const signInWithGoogle = async () => {
     }
 
     if (!userDoc.exists()) {
-      console.log('👤 First time user - creating documents...')
+      logger.auth('First time user - creating documents...')
       // First time user - create user document and usage document
       await setDoc(userDocRef, {
         ...userData,
         createdAt: serverTimestamp(),
       })
-      console.log('✅ User document created')
+      logger.auth('User document created')
 
       // Initialize usage document
       await setDoc(doc(firestore, 'usage', user.uid), {
@@ -52,18 +53,18 @@ export const signInWithGoogle = async () => {
         folderCount: 0,
         lastUpdated: serverTimestamp(),
       })
-      console.log('✅ Usage document created')
+      logger.auth('Usage document created')
     } else {
-      console.log('🔄 Existing user - updating last login...')
+      logger.auth('Existing user - updating last login...')
       // Update last login time
       await setDoc(userDocRef, userData, { merge: true })
-      console.log('✅ User document updated')
+      logger.auth('User document updated')
     }
 
     return { success: true, user: result.user }
   } catch (error: any) {
-    console.error('❌ Error signing in with Google:', error)
-    console.error('Error details:', {
+    logger.error('Error signing in with Google:', error)
+    logger.error('Error details:', {
       code: error.code,
       message: error.message,
       stack: error.stack
@@ -80,7 +81,7 @@ export const signOut = async () => {
     await firebaseSignOut(auth)
     return { success: true }
   } catch (error: any) {
-    console.error('Error signing out:', error)
+    logger.error('Error signing out:', error)
     return { 
       success: false, 
       error: error.message || 'Failed to sign out' 
@@ -90,9 +91,9 @@ export const signOut = async () => {
 
 // Auth state listener
 export const onAuthStateChange = (callback: (user: FirebaseUser | null) => void) => {
-  console.log('🔗 Setting up auth state change listener')
+  logger.auth('Setting up auth state change listener')
   return onAuthStateChanged(auth, (user) => {
-    console.log('🔄 Auth state changed:', user ? `User: ${user.email}` : 'No user')
+    logger.auth('Auth state changed:', user ? `User: ${user.email}` : 'No user')
     callback(user)
   })
 }
@@ -111,7 +112,7 @@ export const getAuthToken = async () => {
     const token = await user.getIdToken()
     return token
   } catch (error) {
-    console.error('Error getting auth token:', error)
+    logger.error('Error getting auth token:', error)
     return null
   }
 }
@@ -139,7 +140,7 @@ export const updateUserProfile = async (updates: { displayName?: string; photoUR
 
     return { success: true }
   } catch (error: any) {
-    console.error('Error updating profile:', error)
+    logger.error('Error updating profile:', error)
     return {
       success: false,
       error: error.message || 'Failed to update profile'
@@ -160,7 +161,7 @@ export const deleteUserAccount = async () => {
     await user.delete()
     return { success: true }
   } catch (error: any) {
-    console.error('Error deleting account:', error)
+    logger.error('Error deleting account:', error)
     return { 
       success: false, 
       error: error.message || 'Failed to delete account' 

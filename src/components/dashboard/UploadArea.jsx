@@ -11,9 +11,13 @@ import { storage, firestore } from '@/lib/firebaseClient'
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage'
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
 import { toast } from 'sonner'
+import { useNotification, useCompletionNotification } from '@/components/providers/NotificationProvider'
+import { logger } from '@/lib/logger'
 
 export function UploadArea({ currentFolder, onUploadComplete, onRegisterTrigger }) {
   const { user } = useAuth()
+  const { showSuccess, showInfo } = useNotification()
+  const { logUploadCompletion } = useCompletionNotification()
   const [uploads, setUploads] = useState([])
   const [isDragActive, setIsDragActive] = useState(false)
   const openRef = useRef(null)
@@ -27,7 +31,7 @@ export function UploadArea({ currentFolder, onUploadComplete, onRegisterTrigger 
   }
 
   const uploadFile = useCallback(async (file) => {
-    console.log('🚀 UPLOAD DEBUG: Starting upload for file:', {
+    logger.upload('Starting upload for file:', {
       name: file.name,
       size: file.size,
       type: file.type,
@@ -35,12 +39,12 @@ export function UploadArea({ currentFolder, onUploadComplete, onRegisterTrigger 
     })
     
     if (!user) {
-      console.error('❌ UPLOAD DEBUG: No user authenticated')
+      logger.error('No user authenticated')
       toast.error('Please sign in to upload files')
       return
     }
 
-    console.log('👤 UPLOAD DEBUG: User info:', {
+    logger.upload('User info:', {
       uid: user.uid,
       email: user.email,
       accessToken: !!user.accessToken
@@ -49,9 +53,9 @@ export function UploadArea({ currentFolder, onUploadComplete, onRegisterTrigger 
     // Check if user token is still valid
     try {
       const token = await user.getIdToken()
-      console.log('🔑 UPLOAD DEBUG: Got valid token:', !!token)
+      logger.upload('Got valid token:', !!token)
     } catch (error) {
-      console.error('❌ UPLOAD DEBUG: Token validation failed:', error)
+      logger.error('Token validation failed:', error)
       toast.error('Authentication expired. Please refresh the page.')
       return
     }
@@ -60,7 +64,7 @@ export function UploadArea({ currentFolder, onUploadComplete, onRegisterTrigger 
     const fileName = file.name
     const storagePath = `${user.uid}/${uploadId}_${fileName}`
     
-    console.log('📁 UPLOAD DEBUG: Upload configuration:', {
+    logger.upload('Upload configuration:', {
       uploadId,
       fileName,
       storagePath,
@@ -78,13 +82,13 @@ export function UploadArea({ currentFolder, onUploadComplete, onRegisterTrigger 
 
     try {
       const storageRef = ref(storage, storagePath)
-      console.log('🔥 UPLOAD DEBUG: Created storage reference:', storagePath)
+      logger.upload('Created storage reference:', storagePath)
       const uploadTask = uploadBytesResumable(storageRef, file)
 
       uploadTask.on('state_changed',
         (snapshot) => {
           const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100
-          console.log(`📊 UPLOAD DEBUG: Progress for ${fileName}: ${Math.round(progress)}% (${snapshot.bytesTransferred}/${snapshot.totalBytes} bytes)`)
+          logger.upload(`Progress for ${fileName}: ${Math.round(progress)}% (${snapshot.bytesTransferred}/${snapshot.totalBytes} bytes)`)
           
           setUploads(prev => prev.map(upload =>
             upload.id === uploadId
@@ -93,7 +97,7 @@ export function UploadArea({ currentFolder, onUploadComplete, onRegisterTrigger 
           ))
         },
         (error) => {
-          console.error('❌ UPLOAD DEBUG: Storage upload error:', {
+          logger.error('Storage upload error:', {
             code: error.code,
             message: error.message,
             fileName: fileName,
@@ -109,11 +113,11 @@ export function UploadArea({ currentFolder, onUploadComplete, onRegisterTrigger 
           toast.error(`Failed to upload ${fileName}: ${error.message}`)
         },
         async () => {
-          console.log('✅ UPLOAD DEBUG: Storage upload completed for:', fileName)
+          logUploadCompletion(fileName, false) // Don't show dialog for individual files during batch
           
           try {
             const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
-            console.log('🔗 UPLOAD DEBUG: Got download URL:', downloadURL.substring(0, 50) + '...')
+            logger.upload('Got download URL:', downloadURL.substring(0, 50) + '...')
             
             const metadata = {
               userId: user.uid,
@@ -127,11 +131,11 @@ export function UploadArea({ currentFolder, onUploadComplete, onRegisterTrigger 
               updatedAt: serverTimestamp()
             }
             
-            console.log('💾 UPLOAD DEBUG: Saving metadata to Firestore:', metadata)
+            logger.upload('Saving metadata to Firestore:', metadata)
             
             // Save file metadata to Firestore
             const docRef = await addDoc(collection(firestore, 'files'), metadata)
-            console.log('✅ UPLOAD DEBUG: Metadata saved with ID:', docRef.id)
+            logger.upload('Metadata saved with ID:', docRef.id)
 
             setUploads(prev => prev.map(upload =>
               upload.id === uploadId
@@ -144,15 +148,23 @@ export function UploadArea({ currentFolder, onUploadComplete, onRegisterTrigger 
               setUploads(prev => prev.filter(upload => upload.id !== uploadId))
             }, 2000)
 
+            // Show individual file completion for single uploads
+            if (uploads.length <= 1) {
+              showSuccess(
+                'Upload Complete',
+                `${fileName} has been uploaded successfully`,
+                { autoCloseDuration: 3000 }
+              )
+            }
             toast.success(`${fileName} uploaded successfully!`)
             
             // Call onUploadComplete callback if provided
             if (onUploadComplete) {
-              console.log('🔄 UPLOAD DEBUG: Calling onUploadComplete callback')
+              logger.upload('Calling onUploadComplete callback')
               onUploadComplete()
             }
           } catch (error) {
-            console.error('❌ UPLOAD DEBUG: Firestore metadata save error:', {
+            logger.error('Firestore metadata save error:', {
               code: error.code,
               message: error.message,
               fileName: fileName,
@@ -171,7 +183,7 @@ export function UploadArea({ currentFolder, onUploadComplete, onRegisterTrigger 
         }
       )
     } catch (error) {
-      console.error('❌ UPLOAD DEBUG: General upload error:', {
+      logger.error('General upload error:', {
         code: error.code,
         message: error.message,
         fileName: fileName,
@@ -204,6 +216,14 @@ export function UploadArea({ currentFolder, onUploadComplete, onRegisterTrigger 
     // Handle accepted files
     if (acceptedFiles?.length > 0) {
       acceptedFiles.forEach(uploadFile)
+      // Show batch upload start notification
+      if (acceptedFiles.length > 1) {
+        showInfo(
+          'Upload Started',
+          `Uploading ${acceptedFiles.length} files...`,
+          { autoCloseDuration: 2000 }
+        )
+      }
       toast.success(`Starting upload of ${acceptedFiles.length} file${acceptedFiles.length > 1 ? 's' : ''}`)
     }
 
@@ -253,27 +273,27 @@ export function UploadArea({ currentFolder, onUploadComplete, onRegisterTrigger 
   // Register the file picker trigger with parent component (only once)
   useEffect(() => {
     if (onRegisterTrigger) {
-      console.log('🔍 DEBUG: UploadArea useEffect - Registering upload trigger function')
+      logger.debug('UploadArea useEffect - Registering upload trigger function')
       
       const triggerUpload = () => {
-        console.log('🔍 DEBUG: triggerUpload called - openRef.current available:', !!openRef.current)
+        logger.debug('triggerUpload called - openRef.current available:', !!openRef.current)
         if (openRef.current) {
-          console.log('🔍 DEBUG: About to call openRef.current()')
+          logger.debug('About to call openRef.current()')
           try {
             openRef.current()
-            console.log('🔍 DEBUG: openRef.current() called successfully')
+            logger.debug('openRef.current() called successfully')
           } catch (error) {
-            console.error('🔍 DEBUG: Error calling openRef.current():', error)
+            logger.error('Error calling openRef.current():', error)
           }
         }
       }
       
-      console.log('🔍 DEBUG: About to call onRegisterTrigger - no state update, just ref assignment')
+      logger.debug('About to call onRegisterTrigger - no state update, just ref assignment')
       try {
         onRegisterTrigger(triggerUpload)
-        console.log('🔍 DEBUG: onRegisterTrigger called successfully')
+        logger.debug('onRegisterTrigger called successfully')
       } catch (error) {
-        console.error('🔍 DEBUG: Error in onRegisterTrigger:', error)
+        logger.error('Error in onRegisterTrigger:', error)
       }
     }
   }, [onRegisterTrigger])

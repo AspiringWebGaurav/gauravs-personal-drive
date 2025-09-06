@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Loader2, RotateCcw, HardDrive, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
+import { useNotification } from '@/components/providers/NotificationProvider'
 
 export function AuthLoadingSpinner({ 
   step = '', 
@@ -17,6 +18,7 @@ export function AuthLoadingSpinner({
   const [showRecovery, setShowRecovery] = useState(false)
   const [isTimedOut, setIsTimedOut] = useState(false)
   const [isPerformingHardRefresh, setIsPerformingHardRefresh] = useState(false)
+  const { showSuccess } = useNotification()
 
   const steps = [
     'Opening Google Sign-in...',
@@ -105,7 +107,13 @@ export function AuthLoadingSpinner({
         }
       }
 
+      // Show both toast for immediate feedback and dialog for completion
       toast.success('Hard refresh completed!', { id: 'hard-refresh' })
+      showSuccess(
+        'System Refreshed',
+        'Hard refresh completed successfully. Your session has been reset.',
+        { autoCloseDuration: 3000 }
+      )
       
       setTimeout(() => {
         if (onHardRefresh) {

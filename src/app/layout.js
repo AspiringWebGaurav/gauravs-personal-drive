@@ -2,6 +2,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { AuthProvider } from "@/components/providers/AuthProvider";
+import { NotificationProvider } from "@/components/providers/NotificationProvider";
 import { Toaster } from "@/components/ui/sonner";
 
 const geistSans = Geist({
@@ -66,17 +67,19 @@ export default function RootLayout({ children }) {
           disableTransitionOnChange
         >
           <AuthProvider>
-            <div className="relative flex min-h-screen flex-col">
-              <main className="flex-1">
-                {children}
-              </main>
-            </div>
-            <Toaster
-              position="top-right"
-              expand={false}
-              richColors
-              closeButton
-            />
+            <NotificationProvider>
+              <div className="relative flex min-h-screen flex-col">
+                <main className="flex-1">
+                  {children}
+                </main>
+              </div>
+              <Toaster
+                position="top-right"
+                expand={false}
+                richColors
+                closeButton
+              />
+            </NotificationProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

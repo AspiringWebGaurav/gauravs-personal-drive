@@ -18,6 +18,8 @@ import { CreateFolderDialog } from '@/components/dashboard/CreateFolderDialog'
 import { Button } from '@/components/ui/button'
 import { FolderPlus } from 'lucide-react'
 import { toast } from 'sonner'
+import { useNotification } from '@/components/providers/NotificationProvider'
+import { logger } from '@/lib/logger'
 
 interface FileData extends DocumentData {
   id: string
@@ -50,6 +52,7 @@ type ViewMode = 'grid' | 'table'
 
 export default function DashboardPage() {
   const { user, loading: authLoading, isTokenReady, getValidToken } = useRequireAuth()
+  const { showSuccess } = useNotification()
   const [files, setFiles] = useState<FileData[]>([])
   const [folders, setFolders] = useState<FolderData[]>([])
   const [currentFolder, setCurrentFolder] = useState<FolderData | null>(null)
@@ -64,18 +67,18 @@ export default function DashboardPage() {
 
   // Enhanced view mode handler with debugging
   const handleViewModeChange = (newMode: ViewMode) => {
-    console.log('Dashboard: Changing view mode from', viewMode, 'to', newMode)
+    logger.ui('Changing view mode from', viewMode, 'to', newMode)
     setViewMode(newMode)
     
     // Force re-render by updating state
     setTimeout(() => {
-      console.log('Dashboard: View mode state after update:', newMode)
+      logger.ui('View mode state after update:', newMode)
     }, 100)
   }
 
   // Debug current view mode
   useEffect(() => {
-    console.log('Dashboard: Current view mode is:', viewMode)
+    logger.ui('Current view mode is:', viewMode)
   }, [viewMode])
 
   // Build folder hierarchy path
@@ -93,7 +96,7 @@ export default function DashboardPage() {
         if (parentFolder) {
           currentFolderInPath = parentFolder
         } else {
-          console.warn('Parent folder not found:', currentFolderInPath.parentId)
+          logger.warn('Parent folder not found:', currentFolderInPath.parentId)
           break
         }
       } else {
@@ -108,7 +111,7 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!user || !isTokenReady) return
 
-    console.log('📂 Setting up all folders cache')
+    logger.log('Setting up all folders cache')
     const allFoldersQuery = query(
       collection(firestore, 'folders'),
       where('userId', '==', user.uid)
@@ -123,13 +126,13 @@ export default function DashboardPage() {
           foldersMap.set(doc.id, folderData)
         })
         setAllFolders(foldersMap)
-        console.log('📂 All folders cache updated:', foldersMap.size, 'folders')
+        logger.log('All folders cache updated:', foldersMap.size, 'folders')
       },
       {
         maxRetries: 3,
         retryDelay: 1500,
         onError: (error) => {
-          console.error('❌ Error fetching all folders:', error)
+          logger.error('Error fetching all folders:', error)
         }
       }
     )
@@ -141,18 +144,18 @@ export default function DashboardPage() {
   useEffect(() => {
     const newHierarchy = buildFolderHierarchy(currentFolder)
     setFolderHierarchy(newHierarchy)
-    console.log('📂 Folder hierarchy updated:', newHierarchy.map((f: FolderData) => f.name))
+    logger.log('Folder hierarchy updated:', newHierarchy.map((f: FolderData) => f.name))
   }, [currentFolder, allFolders, buildFolderHierarchy])
 
   // Enhanced Firestore setup with retry logic
   useEffect(() => {
     if (!user || !isTokenReady) {
-      console.log('📋 Firestore setup skipped - waiting for authentication:', { user: !!user, isTokenReady })
+      logger.log('Firestore setup skipped - waiting for authentication:', { user: !!user, isTokenReady })
       setLoading(true)
       return
     }
 
-    console.log('🔥 Setting up enhanced Firestore listeners for user:', user.email)
+    logger.firebase('Setting up enhanced Firestore listeners for user:', user.email)
     setLoading(true)
     setPermissionError(null)
 
@@ -174,7 +177,7 @@ export default function DashboardPage() {
     const cleanupFiles = onSnapshotWithRetry(
       filesQuery,
       (snapshot) => {
-        console.log('📁 Files snapshot received:', snapshot.docs.length, 'files')
+        logger.log('Files snapshot received:', snapshot.docs.length, 'files')
         const filesData = snapshot.docs.map((doc: any) => ({
           id: doc.id,
           ...doc.data()
@@ -186,12 +189,12 @@ export default function DashboardPage() {
         maxRetries: 5,
         retryDelay: 1500,
         onError: (error, retryCount) => {
-          console.error('❌ Files listener error after retries:', error.code)
+          logger.error('Files listener error after retries:', error.code)
           const errorMessage = handleFirestoreError(error, 'files query')
           setPermissionError(errorMessage)
         },
         onRetry: (retryCount) => {
-          console.log(`🔄 Files query retry attempt ${retryCount}`)
+          logger.log(`Files query retry attempt ${retryCount}`)
           setPermissionError(`Reconnecting... (attempt ${retryCount})`)
         }
       }
@@ -200,7 +203,7 @@ export default function DashboardPage() {
     const cleanupFolders = onSnapshotWithRetry(
       foldersQuery,
       (snapshot) => {
-        console.log('📂 Folders snapshot received:', snapshot.docs.length, 'folders')
+        logger.log('Folders snapshot received:', snapshot.docs.length, 'folders')
         const foldersData = snapshot.docs.map((doc: any) => ({
           id: doc.id,
           ...doc.data()
@@ -213,20 +216,20 @@ export default function DashboardPage() {
         maxRetries: 5,
         retryDelay: 1500,
         onError: (error, retryCount) => {
-          console.error('❌ Folders listener error after retries:', error.code)
+          logger.error('Folders listener error after retries:', error.code)
           const errorMessage = handleFirestoreError(error, 'folders query')
           setPermissionError(errorMessage)
           setLoading(false)
         },
         onRetry: (retryCount) => {
-          console.log(`🔄 Folders query retry attempt ${retryCount}`)
+          logger.log(`Folders query retry attempt ${retryCount}`)
           setPermissionError(`Reconnecting... (attempt ${retryCount})`)
         }
       }
     )
 
     return () => {
-      console.log('🔓 Cleaning up enhanced Firestore listeners')
+      logger.log('Cleaning up enhanced Firestore listeners')
       cleanupFiles()
       cleanupFolders()
     }
@@ -235,11 +238,11 @@ export default function DashboardPage() {
   // Enhanced usage data fetch with retry logic
   useEffect(() => {
     if (!user || !isTokenReady) {
-      console.log('📊 Usage data fetch skipped - waiting for authentication')
+      logger.log('Usage data fetch skipped - waiting for authentication')
       return
     }
 
-    console.log('📊 Setting up enhanced usage data listener')
+    logger.log('Setting up enhanced usage data listener')
     const usageQuery = query(
       collection(firestore, 'usage'),
       where('userId', '==', user.uid)
@@ -248,7 +251,7 @@ export default function DashboardPage() {
     const cleanup = onSnapshotWithRetry(
       usageQuery,
       (snapshot) => {
-        console.log('📊 Usage snapshot received')
+        logger.log('Usage snapshot received')
         if (!snapshot.empty) {
           const usageData = snapshot.docs[0].data() as UsageData
           setUsage(usageData)
@@ -258,11 +261,11 @@ export default function DashboardPage() {
         maxRetries: 3,
         retryDelay: 2000,
         onError: (error, retryCount) => {
-          console.error('❌ Usage listener error after retries:', error.code)
+          logger.error('Usage listener error after retries:', error.code)
           // Don't show error UI for usage data failures, just log them
         },
         onRetry: (retryCount) => {
-          console.log(`🔄 Usage query retry attempt ${retryCount}`)
+          logger.log(`Usage query retry attempt ${retryCount}`)
         }
       }
     )
@@ -293,7 +296,7 @@ export default function DashboardPage() {
     onSwipeRight: () => {
       // Swipe right to go back to parent folder
       if (currentFolder) {
-        console.log('📱 Swipe right detected - navigating to parent')
+        logger.ui('Swipe right detected - navigating to parent')
         navigateToParent()
       }
     },
@@ -302,28 +305,34 @@ export default function DashboardPage() {
   })
 
   const handleUploadComplete = () => {
+    // Keep toast for immediate feedback, add dialog for completion
     toast.success('Files uploaded successfully!')
+    showSuccess(
+      'All Uploads Complete',
+      'All your files have been uploaded successfully',
+      { autoCloseDuration: 3000 }
+    )
   }
 
   const handleUploadTrigger = useCallback(() => {
-    console.log('🔍 DEBUG: DashboardPage - Upload trigger called from EmptyState')
+    logger.debug('Upload trigger called from EmptyState')
     if (uploadAreaTriggerRef.current) {
-      console.log('🔍 DEBUG: DashboardPage - Calling uploadAreaTrigger function')
+      logger.debug('Calling uploadAreaTrigger function')
       uploadAreaTriggerRef.current()
     } else {
-      console.log('🔍 DEBUG: DashboardPage - No uploadAreaTrigger function available yet')
+      logger.debug('No uploadAreaTrigger function available yet')
     }
   }, [])
 
   // Use ref instead of state to avoid render cycle issues
   const handleRegisterTrigger = useCallback((triggerFn: () => void) => {
-    console.log('🔍 DEBUG: DashboardPage - handleRegisterTrigger called - storing in ref')
-    console.log('🔍 DEBUG: DashboardPage - About to store triggerFn in ref (no state update)')
+    logger.debug('handleRegisterTrigger called - storing in ref')
+    logger.debug('About to store triggerFn in ref (no state update)')
     try {
       uploadAreaTriggerRef.current = triggerFn
-      console.log('🔍 DEBUG: DashboardPage - triggerFn stored in ref successfully')
+      logger.debug('triggerFn stored in ref successfully')
     } catch (error) {
-      console.error('🔍 DEBUG: DashboardPage - Error storing triggerFn in ref:', error)
+      logger.error('Error storing triggerFn in ref:', error)
     }
   }, [])
 
@@ -394,7 +403,8 @@ export default function DashboardPage() {
             <CreateFolderDialog
               currentFolder={currentFolder}
               onSuccess={() => {
-                toast.success('Folder created successfully!')
+                // CreateFolderDialog handles its own notifications now
+                // Data refreshes automatically via real-time listeners
               }}
             >
               <Button variant="outline" size="sm" className="glass-button">

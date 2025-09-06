@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { AlertTriangle, RefreshCw, HardDrive, Home } from 'lucide-react'
 import { toast } from 'sonner'
+import { useNotification } from '@/components/providers/NotificationProvider'
 
 interface AuthErrorBoundaryState {
   hasError: boolean
@@ -79,6 +80,8 @@ interface DefaultAuthErrorFallbackProps {
 }
 
 function DefaultAuthErrorFallback({ error, resetError }: DefaultAuthErrorFallbackProps) {
+  const { showSuccess } = useNotification()
+  
   const performHardRefresh = async () => {
     toast.loading('Performing hard refresh...', { id: 'hard-refresh' })
 
@@ -118,7 +121,13 @@ function DefaultAuthErrorFallback({ error, resetError }: DefaultAuthErrorFallbac
         }
       }
 
+      // Show both toast for immediate feedback and dialog for completion
       toast.success('Hard refresh completed!', { id: 'hard-refresh' })
+      showSuccess(
+        'System Refreshed',
+        'Hard refresh completed successfully. Your session has been reset.',
+        { autoCloseDuration: 3000 }
+      )
       
       setTimeout(() => {
         window.location.reload()

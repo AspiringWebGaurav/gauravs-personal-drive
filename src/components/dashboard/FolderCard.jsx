@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { RenameDialog } from './RenameDialog'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import {
   MoreHorizontal,
   Edit3,
@@ -22,21 +23,26 @@ import { formatDistanceToNow } from 'date-fns'
 import { doc, deleteDoc, collection, query, where, getDocs } from 'firebase/firestore'
 import { firestore } from '@/lib/firebaseClient'
 import { toast } from 'sonner'
+import { useNotification } from '@/components/providers/NotificationProvider'
 
 export function FolderCard({ folder, onOpen }) {
   const [isHovered, setIsHovered] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [showRenameDialog, setShowRenameDialog] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [deleteDialogType, setDeleteDialogType] = useState('deleteFolder')
+  const { showSuccess } = useNotification()
 
   const handleRename = () => {
     setShowRenameDialog(true)
   }
 
-  const handleDelete = async () => {
-    if (!confirm(`Are you sure you want to delete "${folder.name}"? This will also delete all files and subfolders inside it. This action cannot be undone.`)) {
-      return
-    }
+  const handleDelete = () => {
+    setDeleteDialogType('deleteFolder')
+    setShowDeleteDialog(true)
+  }
 
+  const handleConfirmDelete = async () => {
     setIsLoading(true)
 
     try {
@@ -56,17 +62,38 @@ export function FolderCard({ folder, onOpen }) {
       ])
 
       if (!filesSnapshot.empty || !foldersSnapshot.empty) {
-        if (!confirm('This folder contains files or other folders. Are you sure you want to delete everything?')) {
-          setIsLoading(false)
-          return
-        }
+        // Close current dialog and show the "folder contains items" dialog
+        setShowDeleteDialog(false)
+        setDeleteDialogType('deleteFolderWithContents')
+        setIsLoading(false)
+        
+        // Small delay to allow dialog transition
+        setTimeout(() => {
+          setShowDeleteDialog(true)
+        }, 100)
+        return
+      }
 
-        // Delete all files in the folder
+      // Proceed with deletion if folder is empty
+      await performDeleteFolder(filesSnapshot, foldersSnapshot)
+    } catch (error) {
+      console.error('Error deleting folder:', error)
+      toast.error('Failed to delete folder. Please try again.')
+      setIsLoading(false)
+    }
+  }
+
+  const performDeleteFolder = async (filesSnapshot = null, foldersSnapshot = null) => {
+    try {
+      // Delete all files in the folder if they exist
+      if (filesSnapshot && !filesSnapshot.empty) {
         for (const fileDoc of filesSnapshot.docs) {
           await deleteDoc(fileDoc.ref)
         }
+      }
 
-        // Delete all subfolders (recursive deletion would need more complex logic)
+      // Delete all subfolders if they exist
+      if (foldersSnapshot && !foldersSnapshot.empty) {
         for (const folderDoc of foldersSnapshot.docs) {
           await deleteDoc(folderDoc.ref)
         }
@@ -75,11 +102,45 @@ export function FolderCard({ folder, onOpen }) {
       // Delete the folder itself
       await deleteDoc(doc(firestore, 'folders', folder.id))
 
+      // Close dialog and show success
+      setShowDeleteDialog(false)
       toast.success('Folder deleted successfully!')
+      showSuccess(
+        'Folder Deleted',
+        `"${folder.name}" has been deleted successfully`,
+        { autoCloseDuration: 2500 }
+      )
     } catch (error) {
       console.error('Error deleting folder:', error)
       toast.error('Failed to delete folder. Please try again.')
     } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleConfirmDeleteWithContents = async () => {
+    setIsLoading(true)
+
+    try {
+      // Re-fetch contents to ensure we have the latest data
+      const filesQuery = query(
+        collection(firestore, 'files'),
+        where('folderId', '==', folder.id)
+      )
+      const foldersQuery = query(
+        collection(firestore, 'folders'),
+        where('parentId', '==', folder.id)
+      )
+
+      const [filesSnapshot, foldersSnapshot] = await Promise.all([
+        getDocs(filesQuery),
+        getDocs(foldersQuery)
+      ])
+
+      await performDeleteFolder(filesSnapshot, foldersSnapshot)
+    } catch (error) {
+      console.error('Error deleting folder with contents:', error)
+      toast.error('Failed to delete folder. Please try again.')
       setIsLoading(false)
     }
   }
@@ -182,8 +243,22 @@ export function FolderCard({ folder, onOpen }) {
         item={folder}
         type="folder"
         onSuccess={() => {
-          toast.success('Folder renamed successfully!')
+          // RenameDialog handles its own notifications now
         }}
+      />
+
+      <ConfirmDialog
+        open={showDeleteDialog}
+        onOpenChange={(open) => {
+          setShowDeleteDialog(open)
+          if (!open) {
+            setIsLoading(false)
+          }
+        }}
+        type={deleteDialogType}
+        itemName={folder.name}
+        onConfirm={deleteDialogType === 'deleteFolderWithContents' ? handleConfirmDeleteWithContents : handleConfirmDelete}
+        isLoading={isLoading}
       />
     </Card>
   )

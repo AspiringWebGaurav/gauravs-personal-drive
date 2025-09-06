@@ -8,6 +8,7 @@ import { ThemeToggle } from '@/components/ThemeToggle'
 import { Loader2 } from 'lucide-react'
 import { useRedirectIfAuthenticated } from '@/components/providers/AuthProvider'
 import { toast } from 'sonner'
+import { useNotification } from '@/components/providers/NotificationProvider'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { AuthLoadingSpinner } from '@/components/ui/AuthLoadingSpinner'
 import { AuthErrorHandler } from '@/components/ui/AuthErrorHandler'
@@ -18,6 +19,7 @@ export default function LoginPage() {
   const [authError, setAuthError] = useState(null)
   const [retryCount, setRetryCount] = useState(0)
   const { loading } = useRedirectIfAuthenticated()
+  const { showSuccess, showInfo } = useNotification()
 
   const handleGoogleSignIn = async () => {
     try {
@@ -34,7 +36,15 @@ export default function LoginPage() {
       
       if (result.success) {
         setLoadingStep('Setting up your session...')
+        
+        // Show both toast for immediate feedback and dialog for completion
         toast.success('Welcome to Gaurav\'s Personal Drive!')
+        showSuccess(
+          'Welcome Back!',
+          'You have successfully signed in to your personal drive',
+          { autoCloseDuration: 3000 }
+        )
+        
         console.log(`🎉 Total sign-in process completed in ${duration}ms`)
         setRetryCount(0) // Reset retry count on success
         // No need for manual redirect - useRedirectIfAuthenticated hook handles this

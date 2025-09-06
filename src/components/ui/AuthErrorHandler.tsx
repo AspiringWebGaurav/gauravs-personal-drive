@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { AlertTriangle, RefreshCw, RotateCcw, HardDrive, Wifi } from 'lucide-react'
 import { toast } from 'sonner'
+import { useNotification } from '@/components/providers/NotificationProvider'
 
 interface AuthErrorHandlerProps {
   error?: string | null
@@ -24,6 +25,7 @@ export function AuthErrorHandler({
   maxRetries = 3
 }: AuthErrorHandlerProps) {
   const [isPerformingHardRefresh, setIsPerformingHardRefresh] = useState(false)
+  const { showSuccess } = useNotification()
 
   // Auto-retry with exponential backoff
   useEffect(() => {
@@ -78,7 +80,13 @@ export function AuthErrorHandler({
         document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=." + window.location.hostname
       })
 
+      // Show both toast for immediate feedback and dialog for completion
       toast.success('Hard refresh completed!', { id: 'hard-refresh' })
+      showSuccess(
+        'System Refreshed',
+        'Hard refresh completed successfully. Your session has been reset.',
+        { autoCloseDuration: 3000 }
+      )
       
       // Small delay to show the success message
       setTimeout(() => {

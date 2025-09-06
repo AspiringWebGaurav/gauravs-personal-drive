@@ -18,9 +18,11 @@ import { FolderPlus, Loader2 } from 'lucide-react'
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
 import { firestore } from '@/lib/firebaseClient'
 import { toast } from 'sonner'
+import { useNotification } from '@/components/providers/NotificationProvider'
 
 export function CreateFolderDialog({ currentFolder, onSuccess, children }) {
   const { user } = useAuth()
+  const { showSuccess } = useNotification()
   const [open, setOpen] = useState(false)
   const [folderName, setFolderName] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -48,7 +50,13 @@ export function CreateFolderDialog({ currentFolder, onSuccess, children }) {
         updatedAt: serverTimestamp(),
       })
 
+      // Keep toast for immediate feedback, add dialog for completion
       toast.success(`Folder "${folderName}" created successfully!`)
+      showSuccess(
+        'Folder Created',
+        `"${folderName}" has been created successfully${currentFolder ? ` in "${currentFolder.name}"` : ' in your drive'}`,
+        { autoCloseDuration: 2500 }
+      )
       setFolderName('')
       setOpen(false)
       onSuccess?.()

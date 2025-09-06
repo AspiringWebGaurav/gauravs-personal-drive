@@ -1,16 +1,17 @@
 'use client'
 
-import { 
-  collection, 
-  query, 
-  onSnapshot, 
-  DocumentData, 
-  Query, 
+import {
+  collection,
+  query,
+  onSnapshot,
+  DocumentData,
+  Query,
   FirestoreError,
-  Unsubscribe 
+  Unsubscribe
 } from 'firebase/firestore'
 import { firestore } from './firebaseClient'
 import { getCurrentUser } from './auth'
+import { logger } from '@/lib/logger'
 
 interface RetryableSnapshotOptions {
   maxRetries?: number
@@ -62,7 +63,7 @@ export function onSnapshotWithRetry<T = DocumentData>(
     if (requireAuth) {
       const user = getCurrentUser()
       if (!user) {
-        console.warn('🔐 Firestore query attempted without authentication')
+        logger.warn('Firestore query attempted without authentication')
         onError?.(new Error('NO_AUTH') as FirestoreError, retryCount)
         return
       }
@@ -77,12 +78,12 @@ export function onSnapshotWithRetry<T = DocumentData>(
         
         // Check if too many consecutive errors
         if (consecutiveErrors >= 5) {
-          console.warn('🚨 Too many consecutive errors, forcing token refresh')
+          logger.warn('Too many consecutive errors, forcing token refresh')
           await user.getIdToken(true) // Force refresh
           consecutiveErrors = 0
         }
       } catch (tokenError) {
-        console.error('❌ Token verification failed:', tokenError)
+        logger.error('Token verification failed:', tokenError)
         consecutiveErrors++
         if (retryCount < maxRetries) {
           scheduleRetry()
@@ -95,64 +96,64 @@ export function onSnapshotWithRetry<T = DocumentData>(
     }
 
     try {
-      console.log(`🔥 Setting up Firestore listener (attempt ${retryCount + 1})`)
+      logger.firebase(`Setting up Firestore listener (attempt ${retryCount + 1})`)
       
       currentUnsubscribe = onSnapshot(
         query,
         (snapshot) => {
-          console.log('✅ Firestore snapshot received successfully')
+          logger.firebase('Firestore snapshot received successfully')
           retryCount = 0 // Reset retry count on success
           consecutiveErrors = 0 // Reset error count on success
           lastSuccessTime = Date.now()
           
           // Defensive programming: validate snapshot
           if (!snapshot) {
-            console.warn('⚠️ Received null/undefined snapshot')
+            logger.warn('Received null/undefined snapshot')
             return
           }
           
           try {
             onNext(snapshot)
           } catch (callbackError) {
-            console.error('❌ Error in snapshot callback:', callbackError)
+            logger.error('Error in snapshot callback:', callbackError)
             onError?.(callbackError as FirestoreError, retryCount)
           }
         },
         (error: FirestoreError) => {
-          console.error('❌ Firestore listener error:', error.code, error.message)
+          logger.error('Firestore listener error:', error.code, error.message)
           consecutiveErrors++
           
           // Check if we've been offline too long
           const timeSinceLastSuccess = Date.now() - lastSuccessTime
           if (timeSinceLastSuccess > 300000) { // 5 minutes
-            console.error('🚨 No successful connection for 5 minutes, may need full app restart')
+            logger.critical('No successful connection for 5 minutes, may need full app restart')
           }
           
           // Handle different error types with enhanced logic
           if (error.code === 'permission-denied') {
-            console.log('🔄 Permission denied - checking retry options')
+            logger.log('Permission denied - checking retry options')
             
             // If we've had recent success, likely a temporary auth issue
             if (timeSinceLastSuccess < 30000 && retryCount < maxRetries) {
-              console.log('🔄 Recent success detected, treating as temporary auth issue')
+              logger.log('Recent success detected, treating as temporary auth issue')
               scheduleRetry()
             } else if (retryCount < maxRetries) {
               // Standard permission retry
               scheduleRetry()
             } else {
-              console.error('❌ Max retries reached for permission denied error')
+              logger.error('Max retries reached for permission denied error')
               onError?.(error, retryCount)
             }
           } else if (error.code === 'unavailable' || error.code === 'deadline-exceeded') {
-            console.log('🔄 Network error - will retry with backoff')
+            logger.log('Network error - will retry with backoff')
             if (retryCount < maxRetries) {
               scheduleRetry()
             } else {
-              console.error('❌ Max retries reached for network error')
+              logger.error('Max retries reached for network error')
               onError?.(error, retryCount)
             }
           } else if (error.code === 'failed-precondition' || error.code === 'aborted') {
-            console.log('🔄 Transient error - will retry')
+            logger.log('Transient error - will retry')
             if (retryCount < maxRetries) {
               scheduleRetry()
             } else {
@@ -160,11 +161,11 @@ export function onSnapshotWithRetry<T = DocumentData>(
             }
           } else {
             // For other errors, don't retry but check if it's really non-retryable
-            console.error('❌ Potentially non-retryable error:', error.code)
+            logger.error('Potentially non-retryable error:', error.code)
             
             // Some errors that look non-retryable might actually be transient
             if (['internal', 'unknown'].includes(error.code) && retryCount === 0) {
-              console.log('🔄 Attempting one retry for potential transient error')
+              logger.log('Attempting one retry for potential transient error')
               scheduleRetry()
             } else {
               onError?.(error, retryCount)
@@ -173,7 +174,7 @@ export function onSnapshotWithRetry<T = DocumentData>(
         }
       )
     } catch (error) {
-      console.error('❌ Error setting up Firestore listener:', error)
+      logger.error('Error setting up Firestore listener:', error)
       if (retryCount < maxRetries) {
         scheduleRetry()
       } else {
@@ -186,7 +187,7 @@ export function onSnapshotWithRetry<T = DocumentData>(
     if (isDestroyed) return
     
     retryCount++
-    console.log(`🔄 Scheduling Firestore retry ${retryCount}/${maxRetries} in ${retryDelay}ms`)
+    logger.log(`Scheduling Firestore retry ${retryCount}/${maxRetries} in ${retryDelay}ms`)
     
     onRetry?.(retryCount)
     
@@ -195,7 +196,7 @@ export function onSnapshotWithRetry<T = DocumentData>(
     const jitter = Math.random() * 1000 // Add up to 1s of jitter
     const totalDelay = backoffMs + jitter
     
-    console.log(`🔄 Retry scheduled in ${Math.round(totalDelay)}ms`)
+    logger.log(`Retry scheduled in ${Math.round(totalDelay)}ms`)
     
     retryTimeout = setTimeout(() => {
       if (!isDestroyed) {
@@ -227,7 +228,7 @@ export function createUserQuery(collectionName: string, userId: string, addition
  * Enhanced error handler for Firestore operations
  */
 export function handleFirestoreError(error: FirestoreError, operation: string): string {
-  console.error(`❌ Firestore error in ${operation}:`, error.code, error.message)
+  logger.error(`Firestore error in ${operation}:`, error.code, error.message)
   
   switch (error.code) {
     case 'permission-denied':
@@ -260,13 +261,13 @@ export async function waitForAuth(timeoutMs: number = 10000): Promise<boolean> {
     const checkAuth = () => {
       const user = getCurrentUser()
       if (user) {
-        console.log('✅ Authentication confirmed for Firestore operations')
+        logger.log('Authentication confirmed for Firestore operations')
         resolve(true)
         return
       }
       
       if (Date.now() - startTime > timeoutMs) {
-        console.warn('⏰ Authentication timeout for Firestore operations')
+        logger.warn('Authentication timeout for Firestore operations')
         resolve(false)
         return
       }

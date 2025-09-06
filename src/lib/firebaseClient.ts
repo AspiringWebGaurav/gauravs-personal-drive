@@ -5,9 +5,10 @@ import { getStorage } from 'firebase/storage'
 import { getDatabase } from 'firebase/database'
 import { getAnalytics } from 'firebase/analytics'
 import type { FirebaseConfig } from '@/types'
+import { logger } from '@/lib/logger'
 
 // Diagnostic logging for environment variables
-console.log('🔍 Firebase Environment Variables Check:')
+logger.firebase('Environment Variables Check')
 const envVars = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -21,9 +22,9 @@ const envVars = {
 
 Object.entries(envVars).forEach(([key, value]) => {
   if (!value) {
-    console.error(`❌ Missing environment variable: NEXT_PUBLIC_FIREBASE_${key.toUpperCase()}`)
+    logger.error(`Missing environment variable: NEXT_PUBLIC_FIREBASE_${key.toUpperCase()}`)
   } else {
-    console.log(`✅ ${key}: ${value.slice(0, 10)}...`)
+    logger.firebase(`${key}: ${value.slice(0, 10)}...`)
   }
 })
 
@@ -39,16 +40,16 @@ const firebaseConfig: FirebaseConfig = {
 }
 
 // Initialize Firebase only if it hasn't been initialized already
-console.log('🚀 Initializing Firebase app...')
+logger.firebase('Initializing Firebase app...')
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0]
 
 // Initialize Firebase services
-console.log('🔧 Initializing Firebase services...')
+logger.firebase('Initializing Firebase services...')
 export const auth = getAuth(app)
 export const firestore = getFirestore(app)
 export const storage = getStorage(app)
 export const database = getDatabase(app)
-console.log('✅ Firebase services initialized successfully')
+logger.firebase('Firebase services initialized successfully')
 
 // Initialize Analytics only on client side
 let analytics: ReturnType<typeof getAnalytics> | null = null
@@ -67,7 +68,7 @@ googleProvider.setCustomParameters({
 })
 
 // Production Firebase services - connecting directly to Firebase Cloud
-console.log('🌍 Using production Firebase services')
+logger.firebase('Using production Firebase services')
 
 export { analytics }
 export default app

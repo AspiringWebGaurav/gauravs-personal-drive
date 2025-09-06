@@ -1,19 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { adminAuth } from '@/lib/firebaseAdmin'
 import { cookies } from 'next/headers'
+import { logger } from '@/lib/logger'
 
 // Set session cookie
 export async function POST(request: NextRequest) {
-  console.log('📥 Session API: POST request received')
+  logger.log('Session API: POST request received')
   const startTime = Date.now()
   
   try {
     const requestBody = await request.json()
-    console.log('📊 Session API: Request body parsed in', Date.now() - startTime, 'ms')
+    logger.log('Session API: Request body parsed in', Date.now() - startTime, 'ms')
     const { token } = requestBody
 
     if (!token) {
-      console.error('❌ Session API: No token provided')
+      logger.error('Session API: No token provided')
       return NextResponse.json(
         { error: 'Token is required', code: 'NO_TOKEN' },
         { status: 400 }
@@ -33,7 +34,7 @@ export async function POST(request: NextRequest) {
     const sessionCookie = await adminAuth.createSessionCookie(token, {
       expiresIn,
     })
-    console.log('🍪 Session API: Session cookie created in', Date.now() - cookieStartTime, 'ms')
+    logger.log('Session API: Session cookie created in', Date.now() - cookieStartTime, 'ms')
 
     const cookieStore = await cookies()
 
@@ -46,16 +47,16 @@ export async function POST(request: NextRequest) {
       path: '/',
     })
 
-    console.log('✅ Session API: Session cookie set successfully')
-    console.log('📊 Session API: Total request time:', Date.now() - startTime, 'ms')
+    logger.log('Session API: Session cookie set successfully')
+    logger.log('Session API: Total request time:', Date.now() - startTime, 'ms')
     return NextResponse.json(
       { success: true, uid: decodedToken.uid },
       { status: 200 }
     )
   } catch (error: any) {
-    console.error('❌ Session API: Error creating session:', error)
-    console.error('❌ Session API: Error occurred after', Date.now() - startTime, 'ms')
-    console.error('❌ Session API: Error stack:', error.stack)
+    logger.error('Session API: Error creating session:', error)
+    logger.error('Session API: Error occurred after', Date.now() - startTime, 'ms')
+    logger.error('Session API: Error stack:', error.stack)
     
     // Provide more specific error responses
     if (error.code === 'auth/id-token-expired') {
@@ -89,7 +90,7 @@ export async function POST(request: NextRequest) {
 // Clear session cookie
 export async function DELETE() {
   try {
-    console.log('🗑️ Session API: Clearing session cookie...')
+    logger.log('Session API: Clearing session cookie...')
     const cookieStore = await cookies()
     
     // Clear the session cookie
@@ -101,13 +102,13 @@ export async function DELETE() {
       path: '/',
     })
 
-    console.log('✅ Session API: Session cookie cleared successfully')
+    logger.log('Session API: Session cookie cleared successfully')
     return NextResponse.json(
       { success: true },
       { status: 200 }
     )
   } catch (error) {
-    console.error('❌ Session API: Error clearing session:', error)
+    logger.error('Session API: Error clearing session:', error)
     return NextResponse.json(
       { error: 'Failed to clear session', code: 'CLEAR_ERROR' },
       { status: 500 }
@@ -143,7 +144,7 @@ export async function GET() {
       { status: 200 }
     )
   } catch (error) {
-    console.error('Error verifying session:', error)
+    logger.error('Error verifying session:', error)
     return NextResponse.json(
       { authenticated: false },
       { status: 401 }
