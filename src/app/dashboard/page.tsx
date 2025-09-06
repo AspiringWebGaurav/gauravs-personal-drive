@@ -90,12 +90,16 @@ export default function DashboardPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(18); // adapt to width
 
+  // REF: scrollable canvas for mobile long-press + tap logic
+  const canvasScrollRef = useRef<HTMLDivElement | null>(null);
+
   // Adapt pageSize to viewport width
   useEffect(() => {
     const update = () => {
       const w = window.innerWidth;
-      if (w < 480) setPageSize(8);
-      else if (w < 768) setPageSize(12);
+      // keep desktop values unchanged; slightly bump small screens to match 2-up grid
+      if (w < 480) setPageSize(10); // was 8; 2 cols x ~5 rows feels better
+      else if (w < 768) setPageSize(12); // unchanged
       else if (w < 1024) setPageSize(16);
       else if (w < 1440) setPageSize(18);
       else setPageSize(24);
@@ -115,12 +119,12 @@ export default function DashboardPage() {
     (targetFolder: FolderData | null): FolderData[] => {
       if (!targetFolder) return [];
       const path: FolderData[] = [];
-      let currentFolderInPath = targetFolder;
-      while (currentFolderInPath && path.length < 20) {
-        path.unshift(currentFolderInPath);
-        if (currentFolderInPath.parentId) {
-          const parentFolder = allFolders.get(currentFolderInPath.parentId);
-          if (parentFolder) currentFolderInPath = parentFolder;
+      let curr = targetFolder;
+      while (curr && path.length < 20) {
+        path.unshift(curr);
+        if (curr.parentId) {
+          const p = allFolders.get(curr.parentId);
+          if (p) curr = p;
           else break;
         } else break;
       }
@@ -139,12 +143,11 @@ export default function DashboardPage() {
     const cleanup = onSnapshotWithRetry(
       allFoldersQuery,
       (snapshot) => {
-        const foldersMap = new Map<string, FolderData>();
+        const map = new Map<string, FolderData>();
         snapshot.docs.forEach((doc: any) => {
-          const folderData = { id: doc.id, ...doc.data() } as FolderData;
-          foldersMap.set(doc.id, folderData);
+          map.set(doc.id, { id: doc.id, ...doc.data() } as FolderData);
         });
-        setAllFolders(foldersMap);
+        setAllFolders(map);
       },
       {
         maxRetries: 3,
@@ -156,8 +159,7 @@ export default function DashboardPage() {
   }, [user, isTokenReady]);
 
   useEffect(() => {
-    const newHierarchy = buildFolderHierarchy(currentFolder);
-    setFolderHierarchy(newHierarchy);
+    setFolderHierarchy(buildFolderHierarchy(currentFolder));
   }, [currentFolder, allFolders, buildFolderHierarchy]);
 
   // Real-time listeners for the active folder
@@ -186,11 +188,9 @@ export default function DashboardPage() {
     const cleanupFiles = onSnapshotWithRetry(
       filesQuery,
       (snapshot) => {
-        const filesData = snapshot.docs.map((d: any) => ({
-          id: d.id,
-          ...d.data(),
-        })) as FileData[];
-        setFiles(filesData);
+        setFiles(
+          snapshot.docs.map((d: any) => ({ id: d.id, ...d.data() } as FileData))
+        );
         setPermissionError(null);
       },
       {
@@ -205,11 +205,11 @@ export default function DashboardPage() {
     const cleanupFolders = onSnapshotWithRetry(
       foldersQuery,
       (snapshot) => {
-        const foldersData = snapshot.docs.map((d: any) => ({
-          id: d.id,
-          ...d.data(),
-        })) as FolderData[];
-        setFolders(foldersData);
+        setFolders(
+          snapshot.docs.map(
+            (d: any) => ({ id: d.id, ...d.data() } as FolderData)
+          )
+        );
         setLoading(false);
         setPermissionError(null);
       },
@@ -326,6 +326,267 @@ export default function DashboardPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [canPrev, canNext, slice.pageCount]);
 
+  /**
+   * MOBILE INTERACTIONS
+   * - Long press: EXACT 3s to open "More actions"
+   * - Folder open: require DOUBLE-TAP (single tap blocked) on mobile
+   */
+  useEffect(() => {
+    const el = canvasScrollRef.current;
+    if (!el) return;
+
+    const looksMobile =
+      (typeof window !== "undefined" &&
+        window.matchMedia &&
+        window.matchMedia("(pointer: coarse)").matches) ||
+      (typeof navigator !== "undefined" && navigator.maxTouchPoints > 0) ||
+      (typeof window !== "undefined" && "ontouchstart" in window);
+
+    if (!(looksMobile && window.innerWidth <= 1024)) return;
+
+    // -----------------
+    // Helpers/selectors
+    // -----------------
+    const isFolderCard = (start: HTMLElement | null): HTMLElement | null => {
+      if (!start) return null;
+      return start.closest(
+        [
+          "[data-folder-id]", // preferred (added in FileList)
+          ".folder-card",
+          "[role='row'][data-kind='folder']",
+          "[data-item='folder']",
+          "[data-kind='folder']",
+        ].join(",")
+      ) as HTMLElement | null;
+    };
+
+    const findCard = (start: HTMLElement): HTMLElement =>
+      (start.closest(
+        [
+          ".file-card",
+          ".folder-card",
+          ".group",
+          "[role='row']",
+          "[role='gridcell']",
+          "[data-file-id]",
+          "[data-folder-id]",
+          "[data-item]",
+          "[data-kind]",
+          "[data-radix-popper-anchor]",
+          "[data-radix-collection-item]",
+          "[role='button']",
+        ].join(",")
+      ) || start) as HTMLElement;
+
+    const findTrigger = (scope: HTMLElement): HTMLElement | null => {
+      const selectors = [
+        "button[aria-label='More actions']",
+        "button[aria-label='Options']",
+        ".file-more-trigger",
+        ".folder-more-trigger",
+        "[data-more-trigger]",
+        "[data-testid='more-actions']",
+        "[data-trigger='more']",
+        "[aria-haspopup='menu']",
+        ":scope button",
+      ].join(",");
+      return (
+        scope.querySelector(selectors) ||
+        scope.parentElement?.querySelector(selectors) ||
+        null
+      );
+    };
+
+    const fireMouseSequence = (node: HTMLElement) => {
+      const init = { bubbles: true, cancelable: true };
+      node.dispatchEvent(new MouseEvent("mousedown", init));
+      node.dispatchEvent(new MouseEvent("mouseup", init));
+      node.dispatchEvent(new MouseEvent("click", init));
+    };
+
+    const firePointerSequence = (node: HTMLElement) => {
+      try {
+        const init: PointerEventInit = {
+          bubbles: true,
+          cancelable: true,
+          pointerId: 1,
+          pointerType: "touch",
+        };
+        node.dispatchEvent(new PointerEvent("pointerdown", init));
+        node.dispatchEvent(new PointerEvent("pointerup", init));
+        node.dispatchEvent(
+          new MouseEvent("click", { bubbles: true, cancelable: true })
+        );
+      } catch {
+        /* older Safari? mouse sequence already sent */
+      }
+    };
+
+    const fireContextMenuAt = (node: HTMLElement, x: number, y: number) => {
+      node.dispatchEvent(
+        new MouseEvent("contextmenu", {
+          bubbles: true,
+          cancelable: true,
+          clientX: x,
+          clientY: y,
+          button: 2,
+        })
+      );
+    };
+
+    const openActionsAt = (x: number, y: number) => {
+      const target = document.elementFromPoint(x, y) as HTMLElement | null;
+      if (!target) return;
+      const card = findCard(target);
+      const trigger = findTrigger(card) || findTrigger(target);
+
+      if (trigger) {
+        trigger.focus?.();
+        fireMouseSequence(trigger);
+        firePointerSequence(trigger);
+        fireContextMenuAt(trigger, x, y); // fallback
+      } else {
+        fireContextMenuAt(target, x, y);
+        if (card && card !== target) fireContextMenuAt(card, x, y);
+      }
+    };
+
+    // -----------------
+    // Long-press (3s)
+    // -----------------
+    let holdTimer: number | null = null;
+    let startX = 0;
+    let startY = 0;
+    let holding = false;
+    const MOVE_CANCEL_PX = 25;
+    const LONG_PRESS_MS = 3000;
+    const originalTouchAction = el.style.touchAction;
+
+    // -----------------
+    // Double-tap logic
+    // -----------------
+    let lastTapTime = 0;
+    let lastTapCard: HTMLElement | null = null;
+    let suppressNextClick = false;
+    const DOUBLE_TAP_MS = 350;
+    const QUICK_TAP_MS = 250; // touch duration threshold to be considered a tap (not long press)
+    let touchStartAt = 0;
+
+    const clearHold = () => {
+      if (holdTimer) {
+        window.clearTimeout(holdTimer);
+        holdTimer = null;
+      }
+      if (holding) {
+        el.style.touchAction = originalTouchAction;
+        holding = false;
+      }
+    };
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      const t = e.touches[0];
+      startX = t.clientX;
+      startY = t.clientY;
+      touchStartAt = Date.now();
+
+      // begin long hold; lock scroll (helps reduce drift)
+      holding = true;
+      el.style.touchAction = "none";
+      holdTimer = window.setTimeout(() => {
+        try {
+          e.preventDefault(); // suppress iOS callout
+        } catch {}
+        openActionsAt(startX, startY);
+        if (navigator.vibrate) navigator.vibrate(10);
+        clearHold();
+      }, LONG_PRESS_MS) as unknown as number;
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (!holdTimer) return;
+      const t = e.touches[0];
+      const dx = Math.abs(t.clientX - startX);
+      const dy = Math.abs(t.clientY - startY);
+      if (dx > MOVE_CANCEL_PX || dy > MOVE_CANCEL_PX) {
+        clearHold();
+      }
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      // end long-press timer if not fired
+      const duration = Date.now() - touchStartAt;
+      const endTarget = e.target as HTMLElement | null;
+
+      // If long press already handled, we're done
+      if (!holdTimer && !holding) return;
+
+      // Not a long press -> consider for double-tap
+      if (duration < QUICK_TAP_MS) {
+        const folder = isFolderCard(endTarget);
+        if (folder) {
+          const now = Date.now();
+          const withinWindow = now - lastTapTime <= DOUBLE_TAP_MS;
+          const sameCard =
+            lastTapCard &&
+            (folder === lastTapCard || folder.isSameNode(lastTapCard));
+
+          if (withinWindow && sameCard) {
+            const openTarget =
+              folder.querySelector("a,button,[role='button']") || folder;
+            if (navigator.vibrate) navigator.vibrate(5);
+            suppressNextClick = false;
+            (openTarget as HTMLElement).click();
+            lastTapTime = 0;
+            lastTapCard = null;
+          } else {
+            suppressNextClick = true;
+            lastTapTime = now;
+            lastTapCard = folder;
+            toast.dismiss("dbltap-hint");
+            toast.message("Tap again to open folder", {
+              id: "dbltap-hint",
+              duration: 800,
+            });
+          }
+        }
+      }
+
+      clearHold();
+    };
+
+    const onTouchCancel = () => clearHold();
+
+    // Cancel the actual click generated by the first tap on folder
+    const onClickCapture = (e: MouseEvent) => {
+      if (!suppressNextClick) return;
+      const target = e.target as HTMLElement | null;
+      const folder = isFolderCard(target);
+      if (folder) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation?.();
+        suppressNextClick = false; // only suppress one click
+      }
+    };
+
+    // Attach listeners
+    el.addEventListener("touchstart", onTouchStart, { passive: false });
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    el.addEventListener("touchend", onTouchEnd, { passive: true });
+    el.addEventListener("touchcancel", onTouchCancel, { passive: true });
+    el.addEventListener("click", onClickCapture, { capture: true });
+
+    return () => {
+      el.removeEventListener("touchstart", onTouchStart as any);
+      el.removeEventListener("touchmove", onTouchMove as any);
+      el.removeEventListener("touchend", onTouchEnd as any);
+      el.removeEventListener("touchcancel", onTouchCancel as any);
+      el.removeEventListener("click", onClickCapture as any, true);
+      el.style.touchAction = "";
+    };
+  }, []);
+
   // --- UI ---
   if (authLoading || !isTokenReady) {
     return (
@@ -411,7 +672,6 @@ export default function DashboardPage() {
             </Button>
           </CreateFolderDialog>
 
-          {/* ✅ add className */}
           <Button
             variant="secondary"
             size="sm"
@@ -428,11 +688,11 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      {/* Main fits the rest exactly */}
-      <main className="h-[calc(100svh-56px)] px-3 sm:px-4 py-3 overflow-hidden">
+      {/* Main fits the rest exactly; prefer 100dvh where supported to prevent iOS jump */}
+      <main className="h-[calc(100svh-56px)] supports-[height:100dvh]:h-[calc(100dvh-56px)] px-3 sm:px-4 py-3 overflow-hidden">
         <div className="grid h-full grid-cols-12 gap-3 min-h-0">
-          {/* LEFT RAIL — 3-row grid */}
-          <aside className="col-span-12 lg:col-span-3 grid grid-rows-[84px_1fr_132px] gap-3 min-h-0 overflow-hidden">
+          {/* LEFT RAIL — hidden on mobile to maximize canvas */}
+          <aside className="hidden lg:grid lg:col-span-3 grid-rows-[84px_1fr_132px] gap-3 min-h-0 overflow-hidden">
             <section className="rounded-2xl border bg-card p-3 overflow-hidden">
               <div className="h-full min-h-0 overflow-hidden">
                 <FolderBreadcrumb
@@ -474,7 +734,6 @@ export default function DashboardPage() {
                 {slice.total} items · Page {slice.page} of {slice.pageCount}
               </div>
               <div className="flex items-center gap-1">
-                {/* ✅ add className on chevrons */}
                 <Button
                   variant="ghost"
                   size="icon"
@@ -498,9 +757,10 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Canvas body */}
+            {/* Canvas body — scroll within on mobile only */}
             <div
-              className="flex-1 px-3 sm:px-4 min-h-0 overflow-hidden"
+              ref={canvasScrollRef}
+              className="flex-1 px-3 sm:px-4 min-h-0 md:overflow-hidden overflow-auto overscroll-contain touch-manipulation select-none"
               style={{ paddingTop: 12, paddingBottom: 12 }}
             >
               <div className="w-full h-full">
@@ -552,7 +812,6 @@ export default function DashboardPage() {
                 )}
               </div>
               <div className="flex items-center gap-1">
-                {/* ✅ add className on Prev/Next */}
                 <Button
                   variant="outline"
                   size="sm"
@@ -576,6 +835,47 @@ export default function DashboardPage() {
           </section>
         </div>
       </main>
+
+      {/* Mobile action dock (like Drive) */}
+      <div className="lg:hidden fixed bottom-3 left-0 right-0 z-40 px-3">
+        <div className="mx-auto max-w-md rounded-2xl border bg-background/95 backdrop-blur shadow-lg flex items-center justify-between px-3 py-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleUploadTrigger}
+            className="flex-1 mr-2"
+          >
+            Upload
+          </Button>
+          <CreateFolderDialog
+            currentFolder={currentFolder}
+            onSuccess={handleCreateFolderSuccess}
+          >
+            <Button variant="default" size="sm" className="flex-1">
+              New Folder
+            </Button>
+          </CreateFolderDialog>
+        </div>
+      </div>
+      <style jsx global>{`
+        /* Mobile-only helpers */
+        @media (max-width: 1024px) {
+          button[aria-label="More actions"],
+          button[aria-label="Options"],
+          .file-more-trigger,
+          .folder-more-trigger {
+            opacity: 1 !important;
+            visibility: visible !important;
+            pointer-events: auto !important;
+          }
+          .group .opacity-0 {
+            opacity: 1 !important;
+          }
+          * {
+            -webkit-touch-callout: none;
+          }
+        }
+      `}</style>
     </div>
   );
 }
