@@ -60,6 +60,41 @@ export function UploadArea({ currentFolder, onUploadComplete, onRegisterTrigger 
       return
     }
 
+    // Check quota before upload
+    try {
+      logger.upload('Checking quota before upload...')
+      const quotaResponse = await fetch('/api/quota?realtime=true')
+      const quota = await quotaResponse.json()
+      
+      if (quota.usedBytes + file.size > quota.limitBytes) {
+        const usedMB = Math.round(quota.usedBytes / (1024 * 1024))
+        const limitMB = Math.round(quota.limitBytes / (1024 * 1024))
+        const fileMB = Math.round(file.size / (1024 * 1024))
+        
+        logger.upload('Upload blocked - quota exceeded:', {
+          usedMB,
+          limitMB,
+          fileMB,
+          wouldExceedBy: Math.round((quota.usedBytes + file.size - quota.limitBytes) / (1024 * 1024))
+        })
+        
+        toast.error(
+          `Upload blocked: File would exceed storage quota. Used: ${usedMB}MB, Limit: ${limitMB}MB, File: ${fileMB}MB`,
+          { duration: 5000 }
+        )
+        return
+      }
+      
+      logger.upload('Quota check passed:', {
+        currentUsage: Math.round(quota.usedBytes / (1024 * 1024)) + 'MB',
+        afterUpload: Math.round((quota.usedBytes + file.size) / (1024 * 1024)) + 'MB',
+        limit: Math.round(quota.limitBytes / (1024 * 1024)) + 'MB'
+      })
+    } catch (error) {
+      logger.warn('Quota check failed, allowing upload:', error)
+      // Allow upload if quota check fails (don't block on server errors)
+    }
+
     const uploadId = Date.now() + Math.random()
     const fileName = file.name
     const storagePath = `${user.uid}/${uploadId}_${fileName}`
@@ -148,6 +183,24 @@ export function UploadArea({ currentFolder, onUploadComplete, onRegisterTrigger 
               setUploads(prev => prev.filter(upload => upload.id !== uploadId))
             }, 2000)
 
+            // Emit upload complete event for quota tracking
+            window.dispatchEvent(new CustomEvent('upload:complete', {
+              detail: { fileName, fileSize: file.size, storagePath }
+            }));
+            
+            // Emit file operation event for quota updates
+            window.dispatchEvent(new CustomEvent('file:operation', {
+              detail: { action: 'upload', fileName, size: file.size }
+            }));
+            
+            // Trigger cross-tab quota update
+            try {
+              localStorage.setItem('quota:update', Date.now().toString());
+              localStorage.removeItem('quota:update'); // Trigger storage event
+            } catch (e) {
+              // Ignore localStorage errors
+            }
+
             // Show individual file completion for single uploads
             if (uploads.length <= 1) {
               showSuccess(
@@ -215,6 +268,11 @@ export function UploadArea({ currentFolder, onUploadComplete, onRegisterTrigger 
 
     // Handle accepted files
     if (acceptedFiles?.length > 0) {
+      // Emit upload start event for quota tracking
+      window.dispatchEvent(new CustomEvent('upload:start', {
+        detail: { fileCount: acceptedFiles.length, totalSize: acceptedFiles.reduce((sum, f) => sum + f.size, 0) }
+      }));
+      
       acceptedFiles.forEach(uploadFile)
       // Show batch upload start notification
       if (acceptedFiles.length > 1) {

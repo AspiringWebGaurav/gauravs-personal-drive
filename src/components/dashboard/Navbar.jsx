@@ -3,6 +3,7 @@
 import { useAuth } from '@/components/providers/AuthProvider'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { Button } from '@/components/ui/button'
+import { MobileStorageIndicator } from './MobileStorageIndicator'
 import { 
   DropdownMenu,
   DropdownMenuContent,
@@ -38,8 +39,9 @@ export function Navbar() {
             </div>
           </div>
 
-          {/* Right side - Theme toggle and User menu */}
+          {/* Right side - Mobile storage, Theme toggle and User menu */}
           <div className="flex items-center space-x-3">
+            <MobileStorageIndicator />
             <ThemeToggle />
             
             <DropdownMenu>

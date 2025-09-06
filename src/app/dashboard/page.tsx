@@ -29,6 +29,7 @@ import { FolderPlus, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { useNotification } from "@/components/providers/NotificationProvider";
 import { logger } from "@/lib/logger";
+import { MobileStorageIndicator } from "@/components/dashboard/MobileStorageIndicator";
 
 interface FileData extends DocumentData {
   id: string;
@@ -586,6 +587,8 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          <MobileStorageIndicator />
+          
           <CreateFolderDialog
             currentFolder={currentFolder}
             onSuccess={() => {
