@@ -1,464 +1,573 @@
-'use client'
+"use client";
 
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { useRequireAuth } from '@/components/providers/AuthProvider'
-import { useSwipeGesture } from '@/hooks/useSwipeGesture'
-import { collection, query, where, orderBy, DocumentData } from 'firebase/firestore'
-import { firestore } from '@/lib/firebaseClient'
-import { onSnapshotWithRetry, handleFirestoreError } from '@/lib/firestoreHelpers'
-import { Navbar } from '@/components/dashboard/Navbar'
-import { UploadArea } from '@/components/dashboard/UploadArea'
-import { FileList } from '@/components/dashboard/FileList'
-import { UsageBar } from '@/components/dashboard/UsageBar'
-import { ViewToggle } from '@/components/dashboard/ViewToggle'
-import { FolderBreadcrumb } from '@/components/dashboard/FolderBreadcrumb'
-import { EmptyState } from '@/components/dashboard/EmptyState'
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
-import { CreateFolderDialog } from '@/components/dashboard/CreateFolderDialog'
-import { Button } from '@/components/ui/button'
-import { FolderPlus } from 'lucide-react'
-import { toast } from 'sonner'
-import { useNotification } from '@/components/providers/NotificationProvider'
-import { logger } from '@/lib/logger'
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useRequireAuth } from "@/components/providers/AuthProvider";
+import { useSwipeGesture } from "@/hooks/useSwipeGesture";
+import {
+  collection,
+  query,
+  where,
+  orderBy,
+  DocumentData,
+  limit,
+  startAfter,
+} from "firebase/firestore";
+import { firestore } from "@/lib/firebaseClient";
+import {
+  onSnapshotWithRetry,
+  handleFirestoreError,
+} from "@/lib/firestoreHelpers";
+import { Navbar } from "@/components/dashboard/Navbar";
+import { UploadArea } from "@/components/dashboard/UploadArea";
+import { FileList } from "@/components/dashboard/FileList";
+import { UsageBar } from "@/components/dashboard/UsageBar";
+import { ViewToggle } from "@/components/dashboard/ViewToggle";
+import { FolderBreadcrumb } from "@/components/dashboard/FolderBreadcrumb";
+import { EmptyState } from "@/components/dashboard/EmptyState";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { CreateFolderDialog } from "@/components/dashboard/CreateFolderDialog";
+import { Button } from "@/components/ui/button";
+import { FolderPlus, ChevronLeft, ChevronRight } from "lucide-react";
+import { toast } from "sonner";
+import { useNotification } from "@/components/providers/NotificationProvider";
+import { logger } from "@/lib/logger";
 
 interface FileData extends DocumentData {
-  id: string
-  filename: string
-  contentType: string
-  size: number
-  downloadURL: string
-  storagePath: string
-  userId: string
-  folderId: string | null
-  createdAt: any
-  updatedAt?: any
+  id: string;
+  filename: string;
+  contentType: string;
+  size: number;
+  downloadURL: string;
+  storagePath: string;
+  userId: string;
+  folderId: string | null;
+  createdAt: any;
+  updatedAt?: any;
 }
 
 interface FolderData extends DocumentData {
-  id: string
-  name: string
-  userId: string
-  parentId: string | null
-  createdAt: any
-  updatedAt?: any
+  id: string;
+  name: string;
+  userId: string;
+  parentId: string | null;
+  createdAt: any;
+  updatedAt?: any;
 }
 
 interface UsageData {
-  usedBytes: number
-  limitBytes: number
+  usedBytes: number;
+  limitBytes: number;
 }
 
-type ViewMode = 'grid' | 'table'
+type ViewMode = "grid" | "table";
+
+type PageSlice = {
+  items: Array<FileData | FolderData>;
+  total: number;
+  page: number;
+  pageCount: number;
+};
 
 export default function DashboardPage() {
-  const { user, loading: authLoading, isTokenReady, getValidToken } = useRequireAuth()
-  const { showSuccess } = useNotification()
-  const [files, setFiles] = useState<FileData[]>([])
-  const [folders, setFolders] = useState<FolderData[]>([])
-  const [currentFolder, setCurrentFolder] = useState<FolderData | null>(null)
-  const [folderHierarchy, setFolderHierarchy] = useState<FolderData[]>([]) // Track folder path
-  const [allFolders, setAllFolders] = useState<Map<string, FolderData>>(new Map()) // Cache all folders
-  const [loading, setLoading] = useState(true)
-  const [viewMode, setViewMode] = useState<ViewMode>('grid')
-  const [usage, setUsage] = useState<UsageData>({ usedBytes: 0, limitBytes: 5 * 1024 * 1024 * 1024 })
-  const [permissionError, setPermissionError] = useState<string | null>(null)
-  const [retryCount, setRetryCount] = useState(0)
-  const uploadAreaTriggerRef = useRef<(() => void) | null>(null)
+  const { user, loading: authLoading, isTokenReady } = useRequireAuth();
+  const { showSuccess } = useNotification();
 
-  // Enhanced view mode handler with debugging
-  const handleViewModeChange = (newMode: ViewMode) => {
-    logger.ui('Changing view mode from', viewMode, 'to', newMode)
-    setViewMode(newMode)
-    
-    // Force re-render by updating state
-    setTimeout(() => {
-      logger.ui('View mode state after update:', newMode)
-    }, 100)
-  }
+  // Data
+  const [files, setFiles] = useState<FileData[]>([]);
+  const [folders, setFolders] = useState<FolderData[]>([]);
+  const [currentFolder, setCurrentFolder] = useState<FolderData | null>(null);
+  const [folderHierarchy, setFolderHierarchy] = useState<FolderData[]>([]);
+  const [allFolders, setAllFolders] = useState<Map<string, FolderData>>(
+    new Map()
+  );
+  const [loading, setLoading] = useState(true);
+  const [permissionError, setPermissionError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
-  // Debug current view mode
+  // UX / Layout
+  const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  const [usage, setUsage] = useState<UsageData>({
+    usedBytes: 0,
+    limitBytes: 5 * 1024 * 1024 * 1024,
+  });
+  const uploadAreaTriggerRef = useRef<(() => void) | null>(null);
+
+  // Pagination (click-more, no long-scroll)
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(18); // will adapt to breakpoint
+
+  // Adapt pageSize to viewport
   useEffect(() => {
-    logger.ui('Current view mode is:', viewMode)
-  }, [viewMode])
+    const update = () => {
+      const w = window.innerWidth;
+      // tuned for Google Drive–like density
+      if (w < 480) setPageSize(8);
+      else if (w < 768) setPageSize(12);
+      else if (w < 1024) setPageSize(16);
+      else if (w < 1440) setPageSize(18);
+      else setPageSize(24);
+    };
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+
+  // View mode change
+  const handleViewModeChange = (newMode: ViewMode) => {
+    logger.ui("Changing view mode", viewMode, "=>", newMode);
+    setViewMode(newMode);
+  };
 
   // Build folder hierarchy path
-  const buildFolderHierarchy = useCallback((targetFolder: FolderData | null): FolderData[] => {
-    if (!targetFolder) return []
-    
-    const path: FolderData[] = []
-    let currentFolderInPath = targetFolder
-    
-    // Traverse up the folder tree
-    while (currentFolderInPath && path.length < 10) { // Prevent infinite loops
-      path.unshift(currentFolderInPath)
-      if (currentFolderInPath.parentId) {
-        const parentFolder = allFolders.get(currentFolderInPath.parentId)
-        if (parentFolder) {
-          currentFolderInPath = parentFolder
-        } else {
-          logger.warn('Parent folder not found:', currentFolderInPath.parentId)
-          break
-        }
-      } else {
-        break
+  const buildFolderHierarchy = useCallback(
+    (targetFolder: FolderData | null): FolderData[] => {
+      if (!targetFolder) return [];
+      const path: FolderData[] = [];
+      let currentFolderInPath = targetFolder;
+      while (currentFolderInPath && path.length < 20) {
+        path.unshift(currentFolderInPath);
+        if (currentFolderInPath.parentId) {
+          const parentFolder = allFolders.get(currentFolderInPath.parentId);
+          if (parentFolder) currentFolderInPath = parentFolder;
+          else break;
+        } else break;
       }
-    }
-    
-    return path
-  }, [allFolders])
+      return path;
+    },
+    [allFolders]
+  );
 
-  // Fetch all folders for hierarchy building
+  // Fetch all folders (for breadcrumbs + parent nav)
   useEffect(() => {
-    if (!user || !isTokenReady) return
-
-    logger.log('Setting up all folders cache')
+    if (!user || !isTokenReady) return;
     const allFoldersQuery = query(
-      collection(firestore, 'folders'),
-      where('userId', '==', user.uid)
-    )
-
+      collection(firestore, "folders"),
+      where("userId", "==", user.uid)
+    );
     const cleanup = onSnapshotWithRetry(
       allFoldersQuery,
       (snapshot) => {
-        const foldersMap = new Map<string, FolderData>()
+        const foldersMap = new Map<string, FolderData>();
         snapshot.docs.forEach((doc: any) => {
-          const folderData = { id: doc.id, ...doc.data() } as FolderData
-          foldersMap.set(doc.id, folderData)
-        })
-        setAllFolders(foldersMap)
-        logger.log('All folders cache updated:', foldersMap.size, 'folders')
+          const folderData = { id: doc.id, ...doc.data() } as FolderData;
+          foldersMap.set(doc.id, folderData);
+        });
+        setAllFolders(foldersMap);
       },
       {
         maxRetries: 3,
         retryDelay: 1500,
-        onError: (error) => {
-          logger.error('Error fetching all folders:', error)
-        }
+        onError: (e) => logger.error("All folders error", e),
       }
-    )
+    );
+    return cleanup;
+  }, [user, isTokenReady]);
 
-    return cleanup
-  }, [user, isTokenReady])
-
-  // Update folder hierarchy when currentFolder or allFolders changes
   useEffect(() => {
-    const newHierarchy = buildFolderHierarchy(currentFolder)
-    setFolderHierarchy(newHierarchy)
-    logger.log('Folder hierarchy updated:', newHierarchy.map((f: FolderData) => f.name))
-  }, [currentFolder, allFolders, buildFolderHierarchy])
+    const newHierarchy = buildFolderHierarchy(currentFolder);
+    setFolderHierarchy(newHierarchy);
+  }, [currentFolder, allFolders, buildFolderHierarchy]);
 
-  // Enhanced Firestore setup with retry logic
+  // Real-time listeners for the active folder
   useEffect(() => {
     if (!user || !isTokenReady) {
-      logger.log('Firestore setup skipped - waiting for authentication:', { user: !!user, isTokenReady })
-      setLoading(true)
-      return
+      setLoading(true);
+      return;
     }
+    setLoading(true);
+    setPermissionError(null);
 
-    logger.firebase('Setting up enhanced Firestore listeners for user:', user.email)
-    setLoading(true)
-    setPermissionError(null)
-
-    // Set up real-time listeners for files and folders with retry logic
     const filesQuery = query(
-      collection(firestore, 'files'),
-      where('userId', '==', user.uid),
-      where('folderId', '==', currentFolder?.id || null),
-      orderBy('createdAt', 'desc')
-    )
+      collection(firestore, "files"),
+      where("userId", "==", user.uid),
+      where("folderId", "==", currentFolder?.id || null),
+      orderBy("createdAt", "desc")
+    );
 
     const foldersQuery = query(
-      collection(firestore, 'folders'),
-      where('userId', '==', user.uid),
-      where('parentId', '==', currentFolder?.id || null),
-      orderBy('createdAt', 'desc')
-    )
+      collection(firestore, "folders"),
+      where("userId", "==", user.uid),
+      where("parentId", "==", currentFolder?.id || null),
+      orderBy("createdAt", "desc")
+    );
 
     const cleanupFiles = onSnapshotWithRetry(
       filesQuery,
       (snapshot) => {
-        logger.log('Files snapshot received:', snapshot.docs.length, 'files')
-        const filesData = snapshot.docs.map((doc: any) => ({
-          id: doc.id,
-          ...doc.data()
-        })) as FileData[]
-        setFiles(filesData)
-        setPermissionError(null) // Clear any previous errors
+        const filesData = snapshot.docs.map((d: any) => ({
+          id: d.id,
+          ...d.data(),
+        })) as FileData[];
+        setFiles(filesData);
+        setPermissionError(null);
       },
       {
         maxRetries: 5,
         retryDelay: 1500,
-        onError: (error, retryCount) => {
-          logger.error('Files listener error after retries:', error.code)
-          const errorMessage = handleFirestoreError(error, 'files query')
-          setPermissionError(errorMessage)
-        },
-        onRetry: (retryCount) => {
-          logger.log(`Files query retry attempt ${retryCount}`)
-          setPermissionError(`Reconnecting... (attempt ${retryCount})`)
-        }
+        onError: (error) =>
+          setPermissionError(handleFirestoreError(error, "files query")),
+        onRetry: (rc) => setPermissionError(`Reconnecting... (attempt ${rc})`),
       }
-    )
+    );
 
     const cleanupFolders = onSnapshotWithRetry(
       foldersQuery,
       (snapshot) => {
-        logger.log('Folders snapshot received:', snapshot.docs.length, 'folders')
-        const foldersData = snapshot.docs.map((doc: any) => ({
-          id: doc.id,
-          ...doc.data()
-        })) as FolderData[]
-        setFolders(foldersData)
-        setLoading(false)
-        setPermissionError(null) // Clear any previous errors
+        const foldersData = snapshot.docs.map((d: any) => ({
+          id: d.id,
+          ...d.data(),
+        })) as FolderData[];
+        setFolders(foldersData);
+        setLoading(false);
+        setPermissionError(null);
       },
       {
         maxRetries: 5,
         retryDelay: 1500,
-        onError: (error, retryCount) => {
-          logger.error('Folders listener error after retries:', error.code)
-          const errorMessage = handleFirestoreError(error, 'folders query')
-          setPermissionError(errorMessage)
-          setLoading(false)
+        onError: (error) => {
+          setPermissionError(handleFirestoreError(error, "folders query"));
+          setLoading(false);
         },
-        onRetry: (retryCount) => {
-          logger.log(`Folders query retry attempt ${retryCount}`)
-          setPermissionError(`Reconnecting... (attempt ${retryCount})`)
-        }
+        onRetry: (rc) => setPermissionError(`Reconnecting... (attempt ${rc})`),
       }
-    )
+    );
 
     return () => {
-      logger.log('Cleaning up enhanced Firestore listeners')
-      cleanupFiles()
-      cleanupFolders()
-    }
-  }, [user, currentFolder, isTokenReady, retryCount])
+      cleanupFiles();
+      cleanupFolders();
+    };
+  }, [user, currentFolder, isTokenReady, retryCount]);
 
-  // Enhanced usage data fetch with retry logic
+  // Usage
   useEffect(() => {
-    if (!user || !isTokenReady) {
-      logger.log('Usage data fetch skipped - waiting for authentication')
-      return
-    }
-
-    logger.log('Setting up enhanced usage data listener')
+    if (!user || !isTokenReady) return;
     const usageQuery = query(
-      collection(firestore, 'usage'),
-      where('userId', '==', user.uid)
-    )
-
+      collection(firestore, "usage"),
+      where("userId", "==", user.uid)
+    );
     const cleanup = onSnapshotWithRetry(
       usageQuery,
       (snapshot) => {
-        logger.log('Usage snapshot received')
-        if (!snapshot.empty) {
-          const usageData = snapshot.docs[0].data() as UsageData
-          setUsage(usageData)
-        }
+        if (!snapshot.empty) setUsage(snapshot.docs[0].data() as UsageData);
       },
-      {
-        maxRetries: 3,
-        retryDelay: 2000,
-        onError: (error, retryCount) => {
-          logger.error('Usage listener error after retries:', error.code)
-          // Don't show error UI for usage data failures, just log them
-        },
-        onRetry: (retryCount) => {
-          logger.log(`Usage query retry attempt ${retryCount}`)
-        }
-      }
-    )
+      { maxRetries: 3, retryDelay: 2000 }
+    );
+    return cleanup;
+  }, [user, isTokenReady]);
 
-    return cleanup
-  }, [user, isTokenReady, retryCount])
-
+  // Navigation helpers
   const handleFolderNavigate = useCallback((folder: FolderData | null) => {
-    setCurrentFolder(folder)
-    // Hierarchy will be updated automatically by the useEffect
-  }, [])
+    setCurrentFolder(folder);
+    setPage(1); // reset pagination when folder changes
+  }, []);
 
   const navigateToParent = useCallback(() => {
     if (currentFolder?.parentId) {
-      const parentFolder = allFolders.get(currentFolder.parentId)
-      if (parentFolder) {
-        setCurrentFolder(parentFolder)
-      } else {
-        setCurrentFolder(null) // Go to root if parent not found
-      }
-    } else {
-      setCurrentFolder(null) // Already at root
-    }
-  }, [currentFolder, allFolders])
+      const parentFolder = allFolders.get(currentFolder.parentId);
+      setCurrentFolder(parentFolder || null);
+    } else setCurrentFolder(null);
+    setPage(1);
+  }, [currentFolder, allFolders]);
 
-  // Swipe gesture support for mobile navigation
+  // Swipe-to-go-back (mobile)
   const { elementRef: swipeRef } = useSwipeGesture({
-    onSwipeRight: () => {
-      // Swipe right to go back to parent folder
-      if (currentFolder) {
-        logger.ui('Swipe right detected - navigating to parent')
-        navigateToParent()
-      }
-    },
+    onSwipeRight: () => currentFolder && navigateToParent(),
     threshold: 100,
-    enabled: true
-  })
+    enabled: true,
+  });
 
+  // Upload handlers
   const handleUploadComplete = () => {
-    // Keep toast for immediate feedback, add dialog for completion
-    toast.success('Files uploaded successfully!')
+    toast.success("Files uploaded successfully!");
     showSuccess(
-      'All Uploads Complete',
-      'All your files have been uploaded successfully',
+      "All Uploads Complete",
+      "All your files have been uploaded successfully",
       { autoCloseDuration: 3000 }
-    )
-  }
-
-  const handleUploadTrigger = useCallback(() => {
-    logger.debug('Upload trigger called from EmptyState')
-    if (uploadAreaTriggerRef.current) {
-      logger.debug('Calling uploadAreaTrigger function')
-      uploadAreaTriggerRef.current()
-    } else {
-      logger.debug('No uploadAreaTrigger function available yet')
-    }
-  }, [])
-
-  // Use ref instead of state to avoid render cycle issues
+    );
+  };
+  const handleUploadTrigger = useCallback(
+    () => uploadAreaTriggerRef.current?.(),
+    []
+  );
   const handleRegisterTrigger = useCallback((triggerFn: () => void) => {
-    logger.debug('handleRegisterTrigger called - storing in ref')
-    logger.debug('About to store triggerFn in ref (no state update)')
-    try {
-      uploadAreaTriggerRef.current = triggerFn
-      logger.debug('triggerFn stored in ref successfully')
-    } catch (error) {
-      logger.error('Error storing triggerFn in ref:', error)
-    }
-  }, [])
+    uploadAreaTriggerRef.current = triggerFn;
+  }, []);
 
-  // Enhanced loading and error states
+  // Folder create success handler (for required onSuccess prop)
+  const handleCreateFolderSuccess = useCallback(() => {
+    toast.success("Folder created!");
+    showSuccess("Folder created", "Your new folder is ready.", {
+      autoCloseDuration: 2500,
+    });
+  }, [showSuccess]);
+
+  // --- CLICK MORE / PAGINATION LOGIC ---
+  const combinedItems = useMemo(() => {
+    // Drive-like ordering: folders first then files, both already time-desc
+    return [...folders, ...files];
+  }, [folders, files]);
+
+  const slice: PageSlice = useMemo(() => {
+    const total = combinedItems.length;
+    const pageCount = Math.max(1, Math.ceil(total / pageSize));
+    const safePage = Math.min(Math.max(page, 1), pageCount);
+    const start = (safePage - 1) * pageSize;
+    const end = start + pageSize;
+    return {
+      items: combinedItems.slice(start, end),
+      total,
+      page: safePage,
+      pageCount,
+    };
+  }, [combinedItems, page, pageSize]);
+
+  const canPrev = slice.page > 1;
+  const canNext = slice.page < slice.pageCount;
+
+  const handlePrev = () => canPrev && setPage((p) => Math.max(1, p - 1));
+  const handleNext = () =>
+    canNext && setPage((p) => Math.min(slice.pageCount, p + 1));
+
+  // Keyboard: Left/Right to paginate (table/grid focus area)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (["INPUT", "TEXTAREA"].includes((e.target as HTMLElement)?.tagName))
+        return;
+      if (e.key === "ArrowLeft") handlePrev();
+      if (e.key === "ArrowRight") handleNext();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [canPrev, canNext, slice.pageCount]);
+
+  // --- UI ---
   if (authLoading || !isTokenReady) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50/50 via-white to-purple-50/50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-4">
           <LoadingSpinner />
           <p className="text-sm text-muted-foreground">
-            {authLoading ? 'Authenticating...' : 'Preparing secure connection...'}
+            {authLoading
+              ? "Authenticating..."
+              : "Preparing secure connection..."}
           </p>
         </div>
       </div>
-    )
+    );
   }
 
-  const hasItems = files.length > 0 || folders.length > 0
+  const hasItems = combinedItems.length > 0;
 
-  // Permission error retry component
   const PermissionErrorRetry = () => (
-    <div className="bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-6">
-      <div className="flex items-center space-x-3">
+    <div className="bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 sm:p-4">
+      <div className="flex items-center gap-3">
         <div className="flex-shrink-0">
-          <svg className="h-5 w-5 text-yellow-600 dark:text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+          <svg
+            className="h-5 w-5 text-yellow-600 dark:text-yellow-400"
+            fill="currentColor"
+            viewBox="0 0 20 20"
+          >
+            <path
+              fillRule="evenodd"
+              d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+              clipRule="evenodd"
+            />
           </svg>
         </div>
         <div className="flex-1">
           <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
-            Connection Issue Detected
+            Connection Issue
           </h3>
-          <p className="mt-1 text-sm text-yellow-700 dark:text-yellow-300">
-            There was a temporary authentication issue. Retrying automatically...
+          <p className="mt-1 text-xs sm:text-sm text-yellow-700 dark:text-yellow-300">
+            Retrying automatically…
           </p>
         </div>
         <button
-          onClick={() => setRetryCount(prev => prev + 1)}
-          className="flex-shrink-0 text-sm text-yellow-600 dark:text-yellow-400 hover:text-yellow-500 font-medium"
+          onClick={() => setRetryCount((prev) => prev + 1)}
+          className="text-sm text-yellow-700 dark:text-yellow-300 hover:underline"
         >
-          Retry Now
+          Retry
         </button>
       </div>
     </div>
-  )
+  );
 
   return (
     <div
       ref={swipeRef as any}
       className="min-h-screen bg-gradient-to-br from-blue-50/50 via-white to-purple-50/50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900"
     >
+      {/* Top app bar */}
       <Navbar />
-      
-      <div className="container mx-auto px-4 py-6 space-y-6">
-        {/* Permission Error Display */}
-        {permissionError && <PermissionErrorRetry />}
 
-        {/* Header with breadcrumbs and actions */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <FolderBreadcrumb
-            currentFolder={currentFolder}
-            folderHierarchy={folderHierarchy}
-            onNavigate={handleFolderNavigate}
-            onNavigateToParent={navigateToParent}
-          />
-          
-          <div className="flex items-center gap-2">
-            <CreateFolderDialog
+      {/* App layout: sticky header + two-rail content + docked footer (usage) */}
+      <div className="mx-auto max-w-[1600px] px-2 sm:px-4 pt-4 pb-24 lg:pb-28">
+        {/* Toolbar row */}
+        <div className="sticky top-0 z-30 -mx-2 sm:-mx-4 px-2 sm:px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-white/60 dark:supports-[backdrop-filter]:bg-gray-900/50 border-b border-border">
+          {permissionError && <PermissionErrorRetry />}
+
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            {/* Left: breadcrumbs */}
+            <FolderBreadcrumb
               currentFolder={currentFolder}
-              onSuccess={() => {
-                // CreateFolderDialog handles its own notifications now
-                // Data refreshes automatically via real-time listeners
-              }}
-            >
-              <Button variant="outline" size="sm" className="glass-button">
-                <FolderPlus className="h-4 w-4 mr-2" />
-                New Folder
-              </Button>
-            </CreateFolderDialog>
-            
-            <ViewToggle
-              viewMode={viewMode}
-              onViewModeChange={handleViewModeChange}
+              folderHierarchy={folderHierarchy}
+              onNavigate={handleFolderNavigate}
+              onNavigateToParent={navigateToParent}
             />
+
+            {/* Right: actions */}
+            <div className="flex items-center gap-2">
+              <CreateFolderDialog
+                currentFolder={currentFolder}
+                onSuccess={handleCreateFolderSuccess}
+              >
+                <Button variant="outline" size="sm" className="glass-button">
+                  <FolderPlus className="h-4 w-4 mr-2" /> New Folder
+                </Button>
+              </CreateFolderDialog>
+              <ViewToggle
+                viewMode={viewMode}
+                onViewModeChange={handleViewModeChange}
+              />
+            </div>
           </div>
         </div>
 
-        {/* Upload Area */}
-        <UploadArea
-          currentFolder={currentFolder}
-          onUploadComplete={handleUploadComplete}
-          onRegisterTrigger={handleRegisterTrigger}
-        />
-
-        {/* Content Area */}
-        <div className="space-y-6">
-          {loading ? (
-            <div className="flex justify-center py-12">
-              <LoadingSpinner />
+        {/* Main content rails */}
+        <div className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-4 lg:gap-6 mt-4">
+          {/* Left rail (mobile => collapses above) */}
+          <div className="order-2 lg:order-1 space-y-4">
+            <div className="rounded-2xl border bg-card p-3 md:p-4">
+              <UploadArea
+                currentFolder={currentFolder}
+                onUploadComplete={handleUploadComplete}
+                onRegisterTrigger={handleRegisterTrigger}
+              />
             </div>
-          ) : hasItems ? (
-            <FileList
-              files={files}
-              folders={folders}
-              viewMode={viewMode}
-              onFolderOpen={handleFolderNavigate}
-              currentFolder={currentFolder}
-            />
-          ) : (
-            <EmptyState
-              currentFolder={currentFolder}
-              onUploadTrigger={handleUploadTrigger}
-              folderHierarchy={folderHierarchy}
-              onNavigateHome={() => handleFolderNavigate(null)}
-              onNavigateToParent={navigateToParent}
-              onNavigateToFolder={handleFolderNavigate}
-              enableSwipeNavigation={true}
-            />
-          )}
-        </div>
 
-        {/* Usage Bar */}
-        <div className="sticky bottom-4">
-          <UsageBar usage={usage} />
+            <div className="rounded-2xl border bg-card p-3 md:p-4">
+              <UsageBar usage={usage} />
+            </div>
+          </div>
+
+          {/* Right rail: file canvas */}
+          <section className="order-1 lg:order-2 rounded-2xl border bg-card p-0 overflow-hidden">
+            {/* Canvas header: pagination controls */}
+            <div className="flex items-center justify-between gap-2 px-3 sm:px-4 py-2 border-b">
+              <div className="text-xs sm:text-sm text-muted-foreground">
+                {slice.total} items · Page {slice.page} of {slice.pageCount}
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Previous page"
+                  onClick={handlePrev}
+                  disabled={!canPrev}
+                  className=""
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Next page"
+                  onClick={handleNext}
+                  disabled={!canNext}
+                  className=""
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="p-2 sm:p-4 min-h-[420px]">
+              {loading ? (
+                <div className="flex justify-center py-16">
+                  <LoadingSpinner />
+                </div>
+              ) : hasItems ? (
+                <FileList
+                  files={slice.items.filter(
+                    (i): i is FileData => (i as any).downloadURL !== undefined
+                  )}
+                  folders={slice.items.filter(
+                    (i): i is FolderData =>
+                      (i as any).parentId !== undefined &&
+                      (i as any).downloadURL === undefined
+                  )}
+                  viewMode={viewMode}
+                  onFolderOpen={handleFolderNavigate}
+                  currentFolder={currentFolder}
+                />
+              ) : (
+                <EmptyState
+                  currentFolder={currentFolder}
+                  onUploadTrigger={handleUploadTrigger}
+                  folderHierarchy={folderHierarchy}
+                  onNavigateHome={() => handleFolderNavigate(null)}
+                  onNavigateToParent={navigateToParent}
+                  onNavigateToFolder={handleFolderNavigate}
+                  enableSwipeNavigation
+                />
+              )}
+            </div>
+
+            {/* Canvas footer: duplicate pager for ease */}
+            {hasItems && (
+              <div className="flex items-center justify-between gap-2 px-3 sm:px-4 py-2 border-t">
+                <div className="text-xs sm:text-sm text-muted-foreground">
+                  Showing {(slice.page - 1) * pageSize + 1}–
+                  {Math.min(slice.page * pageSize, slice.total)} of{" "}
+                  {slice.total}
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handlePrev}
+                    disabled={!canPrev}
+                    className=""
+                  >
+                    Prev
+                  </Button>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={handleNext}
+                    disabled={!canNext}
+                    className=""
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
+          </section>
+        </div>
+      </div>
+
+      {/* Mobile action dock (keeps screen scroll minimal) */}
+      <div className="lg:hidden fixed bottom-3 left-0 right-0 z-40 px-3">
+        <div className="mx-auto max-w-md rounded-2xl border bg-background/95 backdrop-blur shadow-lg flex items-center justify-between px-3 py-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleUploadTrigger}
+            className="flex-1 mr-2"
+          >
+            Upload
+          </Button>
+          <CreateFolderDialog
+            currentFolder={currentFolder}
+            onSuccess={handleCreateFolderSuccess}
+          >
+            <Button variant="default" size="sm" className="flex-1">
+              New Folder
+            </Button>
+          </CreateFolderDialog>
         </div>
       </div>
     </div>
-  )
+  );
 }
