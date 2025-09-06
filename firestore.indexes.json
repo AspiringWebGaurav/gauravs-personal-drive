@@ -5,11 +5,11 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "ownerUid",
+          "fieldPath": "userId",
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "isSecret",
+          "fieldPath": "folderId", 
           "order": "ASCENDING"
         },
         {
@@ -19,16 +19,30 @@
       ]
     },
     {
-      "collectionGroup": "files",
-      "queryScope": "COLLECTION",
+      "collectionGroup": "folders",
+      "queryScope": "COLLECTION", 
       "fields": [
         {
-          "fieldPath": "ownerUid",
+          "fieldPath": "userId",
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "createdAt",
+          "fieldPath": "parentId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt", 
           "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "usage",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
         }
       ]
     }

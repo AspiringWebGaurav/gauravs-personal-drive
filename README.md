@@ -1,350 +1,306 @@
-# Gaurav's Personal Drive (GPD)
+# Gaurav's Personal Drive
 
-A production-ready, private cloud storage application built with Next.js 14, Firebase, and TypeScript. Optimized for India users with premium features including Secret Vault encryption, one-tap sharing, and comprehensive usage monitoring.
+A secure, fast, and minimal cloud storage solution built for personal use. Features a glass-inspired design with dark/light theme support, drag & drop file uploads, folder organization, and real-time synchronization.
 
-![GPD Screenshot](https://img.shields.io/badge/Status-Production%20Ready-green)
-![Next.js](https://img.shields.io/badge/Next.js-14-black)
-![Firebase](https://img.shields.io/badge/Firebase-10.7.2-orange)
-![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
+![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=nextjs)
+![React](https://img.shields.io/badge/React-19-blue?logo=react)
+![Firebase](https://img.shields.io/badge/Firebase-10+-orange?logo=firebase)
+![TailwindCSS](https://img.shields.io/badge/TailwindCSS-4-blue?logo=tailwindcss)
 
-## 🚀 Features
+## ✨ Features
 
-### Core Features
-- **🔐 Google Sign-In Only**: Secure authentication with no artificial limits
-- **📁 File Management**: Drag & drop uploads with progress tracking
-- **🔒 Secret Vault**: Encrypted storage with password protection
-- **📤 One-Tap Sharing**: Generate branded share links instantly
-- **📱 PWA Support**: Installable with offline capabilities
-- **📊 Usage Monitoring**: Real-time tracking with Firebase quota warnings
+- **🔐 Secure Authentication** - Google OAuth with Firebase Auth
+- **📁 Folder Organization** - Create and manage folders to organize your files
+- **⬆️ Drag & Drop Upload** - Seamless file uploading with progress tracking
+- **🔄 Real-time Sync** - Live updates using Firebase Firestore
+- **👀 Dual View Modes** - Switch between grid and table layouts
+- **💾 Usage Tracking** - Monitor storage usage with visual indicators
+- **🎨 Glass Design** - Beautiful glass-morphism UI with theme support
+- **📱 Responsive** - Works perfectly on all devices
+- **⚡ Blazing Fast** - Built with Next.js 15 and optimized for speed
 
-### Premium Features
-- **🎨 Premium UI**: Glassy effects, rounded corners, dark mode support
-- **⚡ Optimized for India**: Fast loading, mobile-first design
-- **🔄 Resumable Uploads**: Handle large files with progress tracking
-- **🛡️ Client-Side Encryption**: AES-GCM with PBKDF2 key derivation
-- **📈 Usage Analytics**: Track storage, bandwidth, and operations
-- **🔗 Branded Sharing**: Custom portfolio links on share pages
+## 🚀 Tech Stack
 
-## 🏗️ Architecture
+- **Frontend**: Next.js 15 (App Router), React 19, TailwindCSS 4
+- **UI Components**: shadcn/ui, Lucide Icons
+- **Backend**: Firebase (Auth, Firestore, Storage, Realtime DB)
+- **Styling**: TailwindCSS with CSS variables, next-themes
+- **State Management**: React Context + Firebase real-time listeners
+- **File Handling**: Firebase Storage with resumable uploads
+- **Authentication**: Firebase Auth with Google provider
 
-### Tech Stack
-- **Frontend**: Next.js 14 (App Router), React 19, TypeScript
-- **Styling**: Tailwind CSS 4 with custom premium design
-- **Backend**: Firebase (Auth, Firestore, Storage, Hosting)
-- **Encryption**: Web Crypto API with AES-GCM
-- **PWA**: Service Worker with caching strategies
+## 📦 Prerequisites
 
-### Project Structure
-```
-src/
-├── app/                    # Next.js App Router
-│   ├── dashboard/         # Main dashboard
-│   ├── settings/          # User settings
-│   ├── s/[token]/        # Public share pages
-│   └── api/              # API routes
-├── components/
-│   ├── auth/             # Authentication components
-│   ├── dashboard/        # Dashboard components
-│   └── layout/           # Layout components
-├── lib/
-│   ├── firebase/         # Firebase utilities
-│   ├── crypto/           # Encryption utilities
-│   └── usage/            # Usage tracking
-└── types/                # TypeScript definitions
-```
-
-## 📋 Prerequisites
-
-- Node.js 18+ and npm
-- Firebase project with the following services:
+- Node.js 18+ 
+- npm or yarn
+- Firebase project with the following services enabled:
   - Authentication (Google provider)
   - Firestore Database
-  - Storage
-  - Hosting (optional)
-- Google Cloud Console project for OAuth setup
+  - Firebase Storage
+  - Realtime Database (optional)
 
-## 🛠️ Installation & Setup
+## 🛠️ Installation
 
-### 1. Clone and Install Dependencies
+### 1. Clone the Repository
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/yourusername/gauravs-personal-drive.git
 cd gauravs-personal-drive
-npm install --legacy-peer-deps
 ```
 
-### 2. Firebase Setup
+### 2. Install Dependencies
 
-#### Create Firebase Project
-1. Go to [Firebase Console](https://console.firebase.google.com/)
-2. Create a new project: `gauravs-personal-drive`
-3. Enable Google Analytics (optional)
+```bash
+npm install
+```
 
-#### Enable Authentication
-1. Go to Authentication > Sign-in method
-2. Enable Google provider
-3. Add your domain to authorized domains
+### 3. Firebase Setup
 
-#### Setup Firestore Database
-1. Go to Firestore Database
-2. Create database in production mode
-3. Select region: `asia-south1` (Mumbai)
+#### Create a Firebase Project
 
-#### Setup Storage
-1. Go to Storage
-2. Get started with default security rules
-3. Select region: `asia-south1` (Mumbai)
+1. Go to the [Firebase Console](https://console.firebase.google.com/)
+2. Create a new project named "gauravs-personal-drive"
+3. Enable Authentication with Google provider
+4. Create a Firestore Database
+5. Create a Firebase Storage bucket
+6. (Optional) Create a Realtime Database
 
-#### Get Firebase Config
-1. Go to Project Settings > General
-2. Scroll to "Your apps" section
-3. Create a web app or use existing config
-4. Copy the configuration object
+#### Get Firebase Configuration
 
-### 3. Environment Configuration
-
-Create `.env.local` with your Firebase credentials:
+1. Go to Project Settings > General > Your apps
+2. Add a web app and copy the configuration
+3. Create `.env.local` file in the project root:
 
 ```env
 # Firebase Configuration
-NEXT_PUBLIC_FIREBASE_API_KEY="your-api-key"
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN="gauravs-personal-drive.firebaseapp.com"
-NEXT_PUBLIC_FIREBASE_DATABASE_URL="your-database-url"
-NEXT_PUBLIC_FIREBASE_PROJECT_ID="gauravs-personal-drive"
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET="gauravs-personal-drive.firebasestorage.app"
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID="your-sender-id"
-NEXT_PUBLIC_FIREBASE_APP_ID="your-app-id"
-NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID="your-measurement-id"
+NEXT_PUBLIC_FIREBASE_API_KEY=your_api_key_here
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=gauravs-personal-drive.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_DATABASE_URL=https://gauravs-personal-drive-default-rtdb.asia-southeast1.firebasedatabase.app
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=gauravs-personal-drive
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=gauravs-personal-drive.firebasestorage.app
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
+NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=your_measurement_id
 
-# Portfolio & Branding
-NEXT_PUBLIC_PORTFOLIO_URL="https://gaurav-webdev-portfolio.vercel.app/"
-
-# Usage Limits Configuration (Firebase Free Tier)
-NEXT_PUBLIC_LIMIT_STORAGE_BYTES="5368709120"         # 5 GiB
-NEXT_PUBLIC_LIMIT_DOWNLOADS_DAY_BYTES="1073741824"   # 1 GiB
-NEXT_PUBLIC_LIMIT_UPLOADS_MONTH_COUNT="5000"
-NEXT_PUBLIC_LIMIT_DOWNLOADS_MONTH_COUNT="50000"
-NEXT_PUBLIC_LIMIT_FIRESTORE_READS_DAY="50000"
-NEXT_PUBLIC_LIMIT_FIRESTORE_WRITES_DAY="50000"
-NEXT_PUBLIC_LIMIT_HOSTING_BW_DAY_BYTES="377487360"   # 360 MB
+# Firebase Admin SDK (for server-side operations)
+FIREBASE_ADMIN_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYOUR_PRIVATE_KEY_HERE\n-----END PRIVATE KEY-----\n"
+FIREBASE_ADMIN_CLIENT_EMAIL=your-service-account@gauravs-personal-drive.iam.gserviceaccount.com
+FIREBASE_ADMIN_PROJECT_ID=gauravs-personal-drive
 
 # App Configuration
-NEXT_PUBLIC_APP_NAME="Gaurav's Personal Drive"
-NEXT_PUBLIC_APP_SHORT_NAME="GPD"
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXTAUTH_SECRET=generate-a-random-string-minimum-32-characters
+NEXTAUTH_URL=http://localhost:3000
 ```
 
-### 4. Firebase Security Rules
+#### Generate Service Account Key
 
-#### Deploy Firestore Rules
+1. Go to Firebase Console > Project Settings > Service accounts
+2. Click "Generate new private key"
+3. Download the JSON file
+4. Extract the `private_key` and `client_email` for your `.env.local`
+
+### 4. Deploy Firebase Security Rules
+
+Deploy the security rules to Firebase:
+
 ```bash
-firebase deploy --only firestore:rules
-```
-
-#### Deploy Storage Rules
-```bash
-firebase deploy --only storage:rules
-```
-
-The rules files (`firestore.rules` and `storage.rules`) are already configured for authenticated access only.
-
-### 5. PWA Icons (Optional)
-
-Add the following icon files to `/public/`:
-- `icon-192x192.png` (192x192 pixels)
-- `icon-512x512.png` (512x512 pixels) 
-- `apple-touch-icon.png` (180x180 pixels)
-
-## 🚀 Development
-
-### Start Development Server
-```bash
-npm run dev
-```
-
-The app will be available at `http://localhost:3000`
-
-### Build for Production
-```bash
-npm run build
-```
-
-## 🌐 Deployment
-
-### Deploy to Vercel (Recommended)
-1. Connect your GitHub repository to Vercel
-2. Add environment variables from `.env.local`
-3. Deploy automatically on push to main branch
-
-### Deploy to Firebase Hosting
-```bash
-# Install Firebase CLI
+# Install Firebase CLI (if not already installed)
 npm install -g firebase-tools
 
 # Login to Firebase
 firebase login
 
-# Initialize Firebase in project
-firebase init hosting
+# Initialize Firebase project
+firebase init
 
-# Build and deploy
+# Deploy Firestore rules
+firebase deploy --only firestore:rules
+
+# Deploy Storage rules  
+firebase deploy --only storage
+
+# Deploy Database rules (if using Realtime Database)
+firebase deploy --only database
+```
+
+### 5. Run the Development Server
+
+```bash
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) to view the application.
+
+## 🏗️ Project Structure
+
+```
+gauravs-personal-drive/
+├── src/
+│   ├── app/                    # Next.js app directory
+│   │   ├── login/             # Login page
+│   │   ├── dashboard/         # Dashboard page
+│   │   ├── api/               # API routes
+│   │   │   ├── auth/          # Authentication endpoints
+│   │   │   └── health/        # Health check endpoint
+│   │   ├── layout.js          # Root layout with providers
+│   │   └── globals.css        # Global styles with glass effects
+│   ├── components/            # React components
+│   │   ├── dashboard/         # Dashboard-specific components
+│   │   ├── providers/         # Context providers
+│   │   └── ui/                # shadcn/ui components
+│   ├── lib/                   # Utilities and configurations
+│   │   ├── firebaseClient.ts  # Firebase client config
+│   │   ├── firebaseAdmin.ts   # Firebase admin config
+│   │   ├── auth.ts           # Authentication utilities
+│   │   └── utils.js          # General utilities
+│   ├── types/                 # TypeScript type definitions
+│   └── middleware.ts          # Next.js middleware for auth
+├── public/                    # Static assets
+├── firestore.rules           # Firestore security rules
+├── storage.rules            # Firebase Storage rules
+├── database.rules.json      # Realtime Database rules
+└── README.md               # This file
+```
+
+## 🔧 Configuration
+
+### Environment Variables
+
+- **NEXT_PUBLIC_FIREBASE_*** - Firebase client configuration
+- **FIREBASE_ADMIN_*** - Firebase Admin SDK configuration
+- **NEXTAUTH_SECRET** - Secret for session encryption
+- **NEXT_PUBLIC_APP_URL** - Application URL
+
+### Firebase Rules
+
+The application uses permissive Firebase rules suitable for personal use:
+
+- **Firestore**: Authenticated users can read/write all documents
+- **Storage**: Authenticated users can read/write all files  
+- **Database**: Authenticated users can read/write all data
+
+⚠️ **Security Note**: These rules are designed for personal use only. For production applications with multiple users, implement more restrictive rules.
+
+## 🚀 Deployment
+
+### Vercel (Recommended)
+
+1. Push your code to GitHub
+2. Connect your repository to Vercel
+3. Add environment variables in Vercel dashboard
+4. Deploy automatically on push
+
+### Manual Deployment
+
+1. Build the application:
+```bash
 npm run build
-firebase deploy --only hosting
 ```
 
-## 📊 Firebase Usage Limits & Monitoring
-
-GPD includes comprehensive usage monitoring for Firebase Free Tier limits:
-
-### Storage Limits
-- **Storage**: 5 GiB total
-- **Downloads**: 1 GiB per day
-- **Uploads**: 5,000 per month
-- **Downloads**: 50,000 per month
-
-### Firestore Limits
-- **Reads**: 50,000 per day
-- **Writes**: 50,000 per day
-- **Storage**: 1 GiB
-
-### Hosting Limits
-- **Storage**: 10 GiB
-- **Bandwidth**: 360 MB per day
-
-### Usage Tracking Features
-- **Real-time monitoring**: Track all operations
-- **Warning system**: Alerts at 80% of limits
-- **Hard blocks**: Prevent operations at 100% of limits
-- **Auto-reset**: Daily/monthly counters reset automatically
-- **Dashboard display**: Usage stats in footer
-
-## 🔐 Security Features
-
-### Authentication
-- Google OAuth 2.0 only
-- No username/password authentication
-- Session management with Firebase Auth
-
-### Secret Vault
-- Client-side encryption with AES-GCM
-- PBKDF2 key derivation from user password
-- Encrypted file metadata stored in Firestore
-- Password never stored on server
-
-### Data Protection
-- All user data belongs to authenticated user
-- Simple Firebase rules for personal use
-- No cross-user data access
-- Secure file download through API routes
-
-## 🧪 Testing Checklist
-
-### Authentication Testing
-- [ ] Google sign-in works correctly
-- [ ] Sign-out clears session
-- [ ] Protected routes redirect to login
-- [ ] User profile displays correctly
-
-### File Management Testing
-- [ ] Drag & drop upload works
-- [ ] File progress tracking works
-- [ ] File list displays correctly
-- [ ] File download works
-- [ ] File deletion works
-
-### Secret Vault Testing
-- [ ] Vault password setup works
-- [ ] Vault unlock/lock works
-- [ ] Secret files upload to separate location
-- [ ] Encrypted files are properly marked
-- [ ] Vault settings update correctly
-
-### Usage Monitoring Testing
-- [ ] Usage stats display correctly
-- [ ] Warnings appear at 80% thresholds
-- [ ] Blocks prevent operations at 100%
-- [ ] Counters reset properly (daily/monthly)
-- [ ] Usage updates after operations
-
-### Settings Testing
-- [ ] General settings save correctly
-- [ ] Portfolio URL updates
-- [ ] Share defaults work
-- [ ] Vault password changes work
-- [ ] Encryption toggle works
-
-### PWA Testing
-- [ ] App installs as PWA
-- [ ] Offline functionality works
-- [ ] Icons display correctly
-- [ ] Shortcuts work
-
-### Responsive Design Testing
-- [ ] Works on mobile devices
-- [ ] 100dvh layout maintained
-- [ ] Touch interactions work
-- [ ] Loading states appropriate
-
-## 🔧 Configuration Options
-
-### Usage Limits Customization
-Modify environment variables to adjust Firebase quota monitoring:
-
-```env
-# Increase storage limit to 10 GiB
-NEXT_PUBLIC_LIMIT_STORAGE_BYTES="10737418240"
-
-# Increase daily downloads to 2 GiB  
-NEXT_PUBLIC_LIMIT_DOWNLOADS_DAY_BYTES="2147483648"
+2. Start the production server:
+```bash
+npm start
 ```
 
-### App Branding Customization
-```env
-# Change app name and branding
-NEXT_PUBLIC_APP_NAME="Your Personal Drive"
-NEXT_PUBLIC_APP_SHORT_NAME="YPD"
-NEXT_PUBLIC_PORTFOLIO_URL="https://your-portfolio.com"
-```
+## 📊 Usage Tracking
 
-### Regional Optimization
-The app is optimized for India:
-- Firebase region: `asia-south1` (Mumbai)
-- CDN optimization for Indian networks
-- Mobile-first responsive design
-- Lightweight assets and lazy loading
+The application includes storage quota tracking:
+
+- **Default Limit**: 5GB (configurable)
+- **Real-time Updates**: Usage updates automatically
+- **Visual Indicators**: Progress bar with color coding
+- **Warnings**: Alerts when approaching or exceeding limits
+
+## 🔒 Security Features
+
+- **Authentication Required**: All routes protected by Firebase Auth
+- **Session Management**: Secure HTTP-only cookies
+- **CORS Protection**: Configured for production domains
+- **Input Validation**: Client and server-side validation
+- **File Type Restrictions**: Configurable file type limits
+
+## 🎨 Theming
+
+The application supports three theme modes:
+
+- **Light Mode**: Clean, minimal light theme
+- **Dark Mode**: Glass-inspired dark theme
+- **System**: Automatic theme based on system preference
+
+Themes persist across sessions and sync across devices.
+
+## 📱 Browser Support
+
+- Chrome 90+
+- Firefox 88+
+- Safari 14+
+- Edge 90+
 
 ## 🐛 Troubleshooting
 
 ### Common Issues
 
-**Firebase Connection Issues**
-- Verify all environment variables are correct
-- Check Firebase project configuration
-- Ensure services are enabled in Firebase Console
+**Authentication not working:**
+- Verify Firebase configuration in `.env.local`
+- Check if Google provider is enabled in Firebase Console
+- Ensure domain is added to authorized domains
 
-**Upload Failures**
+**File uploads failing:**
 - Check Firebase Storage rules
-- Verify user authentication
-- Monitor usage limits in dashboard
+- Verify CORS configuration
+- Check file size limits (default: 100MB)
 
-**Build Errors**
-- Run `npm install --legacy-peer-deps` for dependency conflicts
-- Clear Next.js cache: `rm -rf .next`
-- Update TypeScript: `npm update typescript`
+**Build errors:**
+- Ensure all environment variables are set
+- Check TypeScript configuration
+- Verify all dependencies are installed
 
-### Debug Mode
-Enable debug logging by adding to `.env.local`:
-```env
-NEXT_PUBLIC_DEBUG=true
+### Health Check
+
+Visit `/api/health` to check application status:
+
+```json
+{
+  "status": "ok",
+  "timestamp": "2024-01-01T00:00:00.000Z",
+  "uptime": 123.456,
+  "environment": "production",
+  "version": "1.0.0",
+  "services": {
+    "database": "connected",
+    "storage": "connected", 
+    "auth": "connected"
+  }
+}
 ```
-
-## 📄 License
-
-This project is private and proprietary to Gaurav.
 
 ## 🤝 Contributing
 
-This is a personal project. For issues or suggestions, please create an issue in the repository.
+This is a personal project, but suggestions and improvements are welcome:
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+## 🔮 Future Enhancements
+
+- [ ] File sharing with expiring links
+- [ ] Advanced search and filtering
+- [ ] File versioning and history
+- [ ] Bulk operations (select multiple files)
+- [ ] Image/document preview
+- [ ] Offline support with service workers
+- [ ] Mobile app using React Native
+- [ ] Integration with cloud providers (Google Drive, OneDrive)
 
 ---
 
-**Made with ❤️ by Gaurav** | [Portfolio](https://gaurav-webdev-portfolio.vercel.app/) | GPD v1.0.0
+**Built with ❤️ by Gaurav**
+
+*A modern, secure, and beautiful personal cloud storage solution.*

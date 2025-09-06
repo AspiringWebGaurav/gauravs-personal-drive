@@ -1,9 +1,7 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow authenticated users to read and write all documents
-    // This is a personal app, so the authenticated user owns all data
+    // Personal use rules - authenticated users can read/write anywhere
     match /{document=**} {
       allow read, write: if request.auth != null;
     }
