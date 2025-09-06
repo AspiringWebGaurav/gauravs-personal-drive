@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useCallback } from "react";
 import { FileCard } from "./FileCard";
 import { FolderCard } from "./FolderCard";
 import { FileTableView } from "./FileTableView";
@@ -42,17 +42,38 @@ export function FileList({
   onFolderOpen,
   currentFolder,
 }: FileListProps) {
-  // Debug view mode changes
+  // Debug (optional: remove in prod)
   useEffect(() => {
-    console.log("FileList: View mode changed to:", viewMode);
-    console.log("FileList: Files count:", files.length);
-    console.log("FileList: Folders count:", folders.length);
+    console.log(
+      "FileList: View mode:",
+      viewMode,
+      "files:",
+      files.length,
+      "folders:",
+      folders.length
+    );
   }, [viewMode, files.length, folders.length]);
 
-  console.log("FileList: Rendering with viewMode:", viewMode);
+  // Stable open handler (avoids new closures per render)
+  const openFolder = useCallback(
+    (folder: FolderData) => {
+      onFolderOpen(folder); // DashboardPage's handleFolderNavigate(folder)
+    },
+    [onFolderOpen]
+  );
+
+  // Keyboard support for folder tiles
+  const onFolderKeyDown = useCallback(
+    (e: React.KeyboardEvent, folder: FolderData) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        openFolder(folder);
+      }
+    },
+    [openFolder]
+  );
 
   if (viewMode === "table") {
-    console.log("FileList: Rendering table view");
     return (
       <div
         key={`table-${files.length}-${folders.length}`}
@@ -61,15 +82,14 @@ export function FileList({
         <FileTableView
           files={files}
           folders={folders}
-          onFolderOpen={onFolderOpen}
+          onFolderOpen={openFolder}
           currentFolder={currentFolder}
         />
       </div>
     );
   }
 
-  // Grid view (mobile shows 2-up like Google Drive; desktop unchanged)
-  console.log("FileList: Rendering grid view");
+  // Grid view
   return (
     <div
       key={`grid-${files.length}-${folders.length}-${
@@ -100,9 +120,22 @@ export function FileList({
           }}
           role="listitem"
         >
-          <FolderCard folder={folder} onOpen={() => onFolderOpen(folder)} />
+          {/* Ensure FolderCard is focusable/clickable for a11y & mobile */}
+          <div
+            role="button"
+            tabIndex={0}
+            aria-label={`Open folder ${folder.name}`}
+            onClick={() => openFolder(folder)}
+            onDoubleClick={() => openFolder(folder)}
+            onKeyDown={(e) => onFolderKeyDown(e, folder)}
+            className="outline-none focus:ring-2 focus:ring-ring rounded-lg"
+            data-item="folder"
+          >
+            <FolderCard folder={folder} onOpen={() => openFolder(folder)} />
+          </div>
         </div>
       ))}
+
       {files.map((file, index) => (
         <div
           key={file.id}

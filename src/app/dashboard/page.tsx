@@ -43,6 +43,7 @@ import {
   LogOut,
   Settings,
   User,
+  Home,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useNotification } from "@/components/providers/NotificationProvider";
@@ -106,6 +107,13 @@ export default function DashboardPage() {
   // REF: scrollable canvas for mobile long-press + tap logic
   const canvasScrollRef = useRef<HTMLDivElement | null>(null);
 
+  // —— NAVIGATION HISTORY (NEW) ——
+  const [backStack, setBackStack] = useState<(FolderData | null)[]>([]);
+  const [forwardStack, setForwardStack] = useState<(FolderData | null)[]>([]);
+  const canGoBack = backStack.length > 0;
+  const canGoForward = forwardStack.length > 0;
+  const canGoHome = currentFolder !== null;
+
   // Adapt pageSize to viewport width
   useEffect(() => {
     const update = () => {
@@ -126,7 +134,7 @@ export default function DashboardPage() {
     setViewMode(newMode);
   };
 
-  // Build folder hierarchy path (still used by EmptyState)
+  // Build folder hierarchy path (still used by EmptyState + breadcrumb)
   const buildFolderHierarchy = useCallback(
     (targetFolder: FolderData | null): FolderData[] => {
       if (!targetFolder) return [];
@@ -242,21 +250,59 @@ export default function DashboardPage() {
     };
   }, [user, currentFolder, isTokenReady, retryCount]);
 
-  // Navigation helpers
-  const handleFolderNavigate = useCallback((folder: FolderData | null) => {
-    setCurrentFolder(folder);
-    setPage(1);
-  }, []);
+  // —— CENTRALIZED NAV HELPERS (UPDATED) ——
+  const handleFolderNavigate = useCallback(
+    (folder: FolderData | null, opts?: { fromHistory?: boolean }) => {
+      setPage(1);
+      setCurrentFolder((prev) => {
+        if (!opts?.fromHistory) {
+          setBackStack((s) => [...s, prev ?? null]);
+          setForwardStack([]); // new branch -> clear forward
+        }
+        return folder;
+      });
+    },
+    []
+  );
 
   const navigateToParent = useCallback(() => {
-    if (currentFolder?.parentId) {
-      const parentFolder = allFolders.get(currentFolder.parentId);
-      setCurrentFolder(parentFolder || null);
-    } else setCurrentFolder(null);
-    setPage(1);
-  }, [currentFolder, allFolders]);
+    const parent = currentFolder?.parentId
+      ? allFolders.get(currentFolder.parentId) ?? null
+      : null;
+    handleFolderNavigate(parent);
+  }, [currentFolder, allFolders, handleFolderNavigate]);
 
-  // Swipe-to-go-back (mobile)
+  const goBack = useCallback(() => {
+    if (!canGoBack) return;
+    setBackStack((prev) => {
+      const dest = prev[prev.length - 1] ?? null;
+      setForwardStack((f) => [...f, currentFolder ?? null]);
+      setPage(1);
+      setCurrentFolder(dest);
+      return prev.slice(0, -1);
+    });
+  }, [canGoBack, currentFolder]);
+
+  const goForward = useCallback(() => {
+    if (!canGoForward) return;
+    setForwardStack((prev) => {
+      const dest = prev[prev.length - 1] ?? null;
+      setBackStack((b) => [...b, currentFolder ?? null]);
+      setPage(1);
+      setCurrentFolder(dest);
+      return prev.slice(0, -1);
+    });
+  }, [canGoForward, currentFolder]);
+
+  const goHome = useCallback(() => {
+    if (!canGoHome) return;
+    setBackStack((s) => [...s, currentFolder]);
+    setForwardStack([]);
+    setPage(1);
+    setCurrentFolder(null);
+  }, [canGoHome, currentFolder]);
+
+  // Swipe-to-go-back (mobile): go to parent
   const { elementRef: swipeRef } = useSwipeGesture({
     onSwipeRight: () => currentFolder && navigateToParent(),
     threshold: 100,
@@ -269,7 +315,9 @@ export default function DashboardPage() {
     showSuccess(
       "All Uploads Complete",
       "All your files have been uploaded successfully",
-      { autoCloseDuration: 3000 }
+      {
+        autoCloseDuration: 3000,
+      }
     );
   };
   const handleUploadTrigger = useCallback(
@@ -320,257 +368,27 @@ export default function DashboardPage() {
   const handleNext = () =>
     canNext && setPage((p) => Math.min(slice.pageCount, p + 1));
 
-  // Keyboard pagination
+  // Keyboard: pagination + history
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (["INPUT", "TEXTAREA"].includes((e.target as HTMLElement)?.tagName))
         return;
+      if (e.altKey && e.key === "ArrowLeft") {
+        e.preventDefault();
+        goBack();
+        return;
+      }
+      if (e.altKey && e.key === "ArrowRight") {
+        e.preventDefault();
+        goForward();
+        return;
+      }
       if (e.key === "ArrowLeft") handlePrev();
       if (e.key === "ArrowRight") handleNext();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [canPrev, canNext, slice.pageCount]);
-
-  // --- Mobile interactions (unchanged) ---
-  useEffect(() => {
-    const el = canvasScrollRef.current;
-    if (!el) return;
-    const looksMobile =
-      (typeof window !== "undefined" &&
-        window.matchMedia &&
-        window.matchMedia("(pointer: coarse)").matches) ||
-      (typeof navigator !== "undefined" && navigator.maxTouchPoints > 0) ||
-      (typeof window !== "undefined" && "ontouchstart" in window);
-    if (!(looksMobile && window.innerWidth <= 1024)) return;
-
-    const isFolderCard = (start: HTMLElement | null): HTMLElement | null => {
-      if (!start) return null;
-      return start.closest(
-        [
-          "[data-folder-id]",
-          ".folder-card",
-          "[role='row'][data-kind='folder']",
-          "[data-item='folder']",
-          "[data-kind='folder']",
-        ].join(",")
-      ) as HTMLElement | null;
-    };
-
-    const findCard = (start: HTMLElement): HTMLElement =>
-      (start.closest(
-        [
-          ".file-card",
-          ".folder-card",
-          ".group",
-          "[role='row']",
-          "[role='gridcell']",
-          "[data-file-id]",
-          "[data-folder-id]",
-          "[data-item]",
-          "[data-kind]",
-          "[data-radix-popper-anchor]",
-          "[data-radix-collection-item]",
-          "[role='button']",
-        ].join(",")
-      ) || start) as HTMLElement;
-
-    const findTrigger = (scope: HTMLElement): HTMLElement | null => {
-      const selectors = [
-        "button[aria-label='More actions']",
-        "button[aria-label='Options']",
-        ".file-more-trigger",
-        ".folder-more-trigger",
-        "[data-more-trigger]",
-        "[data-testid='more-actions']",
-        "[data-trigger='more']",
-        "[aria-haspopup='menu']",
-        ":scope button",
-      ].join(",");
-      return (
-        scope.querySelector(selectors) ||
-        scope.parentElement?.querySelector(selectors) ||
-        null
-      );
-    };
-
-    const fireMouseSequence = (node: HTMLElement) => {
-      const init = { bubbles: true, cancelable: true } as MouseEventInit;
-      node.dispatchEvent(new MouseEvent("mousedown", init));
-      node.dispatchEvent(new MouseEvent("mouseup", init));
-      node.dispatchEvent(new MouseEvent("click", init));
-    };
-
-    const firePointerSequence = (node: HTMLElement) => {
-      try {
-        const init: PointerEventInit = {
-          bubbles: true,
-          cancelable: true,
-          pointerId: 1,
-          pointerType: "touch",
-        };
-        node.dispatchEvent(new PointerEvent("pointerdown", init));
-        node.dispatchEvent(new PointerEvent("pointerup", init));
-        node.dispatchEvent(
-          new MouseEvent("click", { bubbles: true, cancelable: true })
-        );
-      } catch {}
-    };
-
-    const fireContextMenuAt = (node: HTMLElement, x: number, y: number) => {
-      node.dispatchEvent(
-        new MouseEvent("contextmenu", {
-          bubbles: true,
-          cancelable: true,
-          clientX: x,
-          clientY: y,
-          button: 2,
-        })
-      );
-    };
-
-    const openActionsAt = (x: number, y: number) => {
-      const target = document.elementFromPoint(x, y) as HTMLElement | null;
-      if (!target) return;
-      const card = findCard(target);
-      const trigger = findTrigger(card) || findTrigger(target);
-
-      if (trigger) {
-        (trigger as HTMLElement).focus?.();
-        fireMouseSequence(trigger as HTMLElement);
-        firePointerSequence(trigger as HTMLElement);
-        fireContextMenuAt(trigger as HTMLElement, x, y);
-      } else {
-        fireContextMenuAt(target, x, y);
-        if (card && card !== target) fireContextMenuAt(card, x, y);
-      }
-    };
-
-    let holdTimer: number | null = null;
-    let startX = 0;
-    let startY = 0;
-    let holding = false;
-    const MOVE_CANCEL_PX = 25;
-    const LONG_PRESS_MS = 3000;
-    const originalTouchAction = (el as HTMLElement).style.touchAction;
-
-    let lastTapTime = 0;
-    let lastTapCard: HTMLElement | null = null;
-    let suppressNextClick = false;
-    const DOUBLE_TAP_MS = 350;
-    const QUICK_TAP_MS = 250;
-    let touchStartAt = 0;
-
-    const clearHold = () => {
-      if (holdTimer) {
-        window.clearTimeout(holdTimer);
-        holdTimer = null;
-      }
-      if (holding) {
-        (el as HTMLElement).style.touchAction = originalTouchAction;
-        holding = false;
-      }
-    };
-
-    const onTouchStart = (e: TouchEvent) => {
-      if (e.touches.length !== 1) return;
-      const t = e.touches[0];
-      startX = t.clientX;
-      startY = t.clientY;
-      touchStartAt = Date.now();
-
-      holding = true;
-      (el as HTMLElement).style.touchAction = "none";
-      holdTimer = window.setTimeout(() => {
-        try {
-          e.preventDefault();
-        } catch {}
-        openActionsAt(startX, startY);
-        if (navigator.vibrate) navigator.vibrate(10);
-        clearHold();
-      }, LONG_PRESS_MS) as unknown as number;
-    };
-
-    const onTouchMove = (e: TouchEvent) => {
-      if (!holdTimer) return;
-      const t = e.touches[0];
-      const dx = Math.abs(t.clientX - startX);
-      const dy = Math.abs(t.clientY - startY);
-      if (dx > MOVE_CANCEL_PX || dy > MOVE_CANCEL_PX) {
-        clearHold();
-      }
-    };
-
-    const onTouchEnd = (e: TouchEvent) => {
-      const duration = Date.now() - touchStartAt;
-      const endTarget = e.target as HTMLElement | null;
-
-      if (!holdTimer && !holding) return;
-
-      if (duration < QUICK_TAP_MS) {
-        const folder = isFolderCard(endTarget);
-        if (folder) {
-          const now = Date.now();
-          const withinWindow = now - lastTapTime <= DOUBLE_TAP_MS;
-          const sameCard =
-            lastTapCard &&
-            (folder === lastTapCard || folder.isSameNode(lastTapCard));
-
-          if (withinWindow && sameCard) {
-            const openTarget =
-              (folder.querySelector(
-                "a,button,[role='button']"
-              ) as HTMLElement) || folder;
-            if (navigator.vibrate) navigator.vibrate(5);
-            suppressNextClick = false;
-            openTarget.click();
-            lastTapTime = 0;
-            lastTapCard = null;
-          } else {
-            suppressNextClick = true;
-            lastTapTime = now;
-            lastTapCard = folder;
-            toast.dismiss("dbltap-hint");
-            toast.message("Tap again to open folder", {
-              id: "dbltap-hint",
-              duration: 800,
-            });
-          }
-        }
-      }
-
-      clearHold();
-    };
-
-    const onTouchCancel = () => clearHold();
-
-    const onClickCapture = (e: MouseEvent) => {
-      if (!suppressNextClick) return;
-      const target = e.target as HTMLElement | null;
-      const folder = isFolderCard(target);
-      if (folder) {
-        e.preventDefault();
-        e.stopPropagation();
-        (e as any).stopImmediatePropagation?.();
-        suppressNextClick = false;
-      }
-    };
-
-    el.addEventListener("touchstart", onTouchStart, { passive: false });
-    el.addEventListener("touchmove", onTouchMove, { passive: false });
-    el.addEventListener("touchend", onTouchEnd, { passive: true });
-    el.addEventListener("touchcancel", onTouchCancel, { passive: true });
-    el.addEventListener("click", onClickCapture, { capture: true });
-
-    return () => {
-      el.removeEventListener("touchstart", onTouchStart as any);
-      el.removeEventListener("touchmove", onTouchMove as any);
-      el.removeEventListener("touchend", onTouchEnd as any);
-      el.removeEventListener("touchcancel", onTouchCancel as any);
-      el.removeEventListener("click", onClickCapture as any, true);
-      (el as HTMLElement).style.touchAction = "";
-    };
-  }, []);
+  }, [goBack, goForward, handlePrev, handleNext]);
 
   // --- UI ---
   if (authLoading || !isTokenReady) {
@@ -589,6 +407,10 @@ export default function DashboardPage() {
   }
 
   const hasItems = combinedItems.length > 0;
+  const currentCrumb =
+    folderHierarchy.length > 0
+      ? folderHierarchy[folderHierarchy.length - 1]?.name
+      : "Home";
 
   return (
     <div
@@ -601,12 +423,62 @@ export default function DashboardPage() {
           <div className="h-8 w-8 rounded-xl bg-indigo-600 text-white grid place-items-center font-bold">
             G
           </div>
-          <div className="truncate">
-            <p className="text-[11px] leading-none text-gray-500">Home</p>
-            <h1 className="text-sm sm:text-base font-semibold truncate">
-              Gaurav&apos;s Personal Drive
-            </h1>
+
+          {/* ——— NAV CONTROLS + BREADCRUMB (DESKTOP) ——— */}
+          <div className="hidden sm:flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Home"
+              onClick={goHome}
+              disabled={!canGoHome} className={undefined}            >
+              <Home className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Back"
+              onClick={goBack}
+              disabled={!canGoBack} className={undefined}            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Forward"
+              onClick={goForward}
+              disabled={!canGoForward} className={undefined}            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
           </div>
+
+          {/* Desktop breadcrumb */}
+          <nav className="hidden sm:block ml-2 truncate text-sm">
+            <button
+              className="text-muted-foreground hover:underline"
+              onClick={() => handleFolderNavigate(null)}
+              disabled={currentFolder === null}
+            >
+              Home
+            </button>
+            {folderHierarchy.map((f, i) => (
+              <span key={f.id} className="text-muted-foreground">
+                {" "}
+                /{" "}
+                <button
+                  className={`hover:underline ${
+                    i === folderHierarchy.length - 1
+                      ? "font-semibold text-foreground"
+                      : ""
+                  }`}
+                  onClick={() => handleFolderNavigate(f)}
+                  disabled={i === folderHierarchy.length - 1}
+                >
+                  {f.name}
+                </button>
+              </span>
+            ))}
+          </nav>
         </div>
 
         <div className="flex items-center gap-2">
@@ -630,7 +502,12 @@ export default function DashboardPage() {
             </Button>
           </CreateFolderDialog>
 
-          <Button variant="secondary" size="sm" onClick={handleUploadTrigger} className={undefined}>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleUploadTrigger}
+            className="hidden sm:inline-flex"
+          >
             Upload
           </Button>
 
@@ -706,6 +583,72 @@ export default function DashboardPage() {
         </div>
       </header>
 
+      {/* —— NEW: MOBILE SUB-NAV (below header) —— */}
+      <div className="sm:hidden sticky top-14 z-40 border-b bg-background/95 backdrop-blur">
+        <div className="px-3 py-2 flex items-center gap-2 overflow-x-auto no-scrollbar">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={goHome}
+            aria-label="Go Home"
+            disabled={!canGoHome}
+            className="shrink-0"
+          >
+            <Home className="h-4 w-4 mr-1" />
+            Home
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={goBack}
+            aria-label="Go Back"
+            disabled={!canGoBack}
+            className="shrink-0"
+          >
+            <ChevronLeft className="h-4 w-4 mr-1" />
+            Back
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={goForward}
+            aria-label="Go Forward"
+            disabled={!canGoForward}
+            className="shrink-0"
+          >
+            <ChevronRight className="h-4 w-4 mr-1" />
+            Forward
+          </Button>
+
+          <div className="mx-1 h-6 w-px bg-border shrink-0" />
+
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleUploadTrigger}
+            className="shrink-0"
+          >
+            Upload
+          </Button>
+
+          <CreateFolderDialog
+            currentFolder={currentFolder}
+            onSuccess={handleCreateFolderSuccess}
+          >
+            <Button variant="default" size="sm" className="shrink-0">
+              <FolderPlus className="h-4 w-4 mr-1" />
+              New
+            </Button>
+          </CreateFolderDialog>
+
+          <div className="ml-auto text-xs text-muted-foreground truncate">
+            {currentCrumb}
+            <span className="mx-1">·</span>
+            {slice.total} item{slice.total === 1 ? "" : "s"}
+          </div>
+        </div>
+      </div>
+
       {/* Main fits the rest exactly; prefer 100dvh where supported to prevent iOS jump */}
       <main className="h-[calc(100svh-56px)] supports-[height:100dvh]:h-[calc(100dvh-56px)] px-3 sm:px-4 py-3 overflow-hidden">
         <div className="grid h-full grid-cols-12 gap-3 min-h-0">
@@ -777,7 +720,7 @@ export default function DashboardPage() {
                         (i as any).downloadURL === undefined
                     )}
                     viewMode={viewMode}
-                    onFolderOpen={handleFolderNavigate}
+                    onFolderOpen={(folder) => handleFolderNavigate(folder)}
                     currentFolder={currentFolder}
                   />
                 ) : (
@@ -788,7 +731,7 @@ export default function DashboardPage() {
                       folderHierarchy={folderHierarchy}
                       onNavigateHome={() => handleFolderNavigate(null)}
                       onNavigateToParent={navigateToParent}
-                      onNavigateToFolder={handleFolderNavigate}
+                      onNavigateToFolder={(f) => handleFolderNavigate(f)}
                       enableSwipeNavigation
                     />
                   </div>
@@ -868,6 +811,13 @@ export default function DashboardPage() {
           }
           * {
             -webkit-touch-callout: none;
+          }
+          .no-scrollbar::-webkit-scrollbar {
+            display: none;
+          }
+          .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
           }
         }
       `}</style>
