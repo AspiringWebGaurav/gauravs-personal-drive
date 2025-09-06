@@ -20,7 +20,7 @@ import { UploadArea } from "@/components/dashboard/UploadArea";
 import { FileList } from "@/components/dashboard/FileList";
 import { UsageBar } from "@/components/dashboard/UsageBar";
 import { ViewToggle } from "@/components/dashboard/ViewToggle";
-import { FolderBreadcrumb } from "@/components/dashboard/FolderBreadcrumb";
+// Breadcrumb removed
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { CreateFolderDialog } from "@/components/dashboard/CreateFolderDialog";
@@ -50,10 +50,6 @@ interface FolderData extends DocumentData {
   createdAt: any;
   updatedAt?: any;
 }
-interface UsageData {
-  usedBytes: number;
-  limitBytes: number;
-}
 type ViewMode = "grid" | "table";
 type PageSlice = {
   items: Array<FileData | FolderData>;
@@ -80,10 +76,6 @@ export default function DashboardPage() {
 
   // UX / Layout
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
-  const [usage, setUsage] = useState<UsageData>({
-    usedBytes: 0,
-    limitBytes: 5 * 1024 * 1024 * 1024,
-  });
   const uploadAreaTriggerRef = useRef<(() => void) | null>(null);
 
   // Pagination (fits to viewport; no long scroll)
@@ -97,9 +89,8 @@ export default function DashboardPage() {
   useEffect(() => {
     const update = () => {
       const w = window.innerWidth;
-      // keep desktop values unchanged; slightly bump small screens to match 2-up grid
-      if (w < 480) setPageSize(10); // was 8; 2 cols x ~5 rows feels better
-      else if (w < 768) setPageSize(12); // unchanged
+      if (w < 480) setPageSize(10);
+      else if (w < 768) setPageSize(12);
       else if (w < 1024) setPageSize(16);
       else if (w < 1440) setPageSize(18);
       else setPageSize(24);
@@ -114,7 +105,7 @@ export default function DashboardPage() {
     setViewMode(newMode);
   };
 
-  // Build folder hierarchy path
+  // Build folder hierarchy path (still used by EmptyState)
   const buildFolderHierarchy = useCallback(
     (targetFolder: FolderData | null): FolderData[] => {
       if (!targetFolder) return [];
@@ -230,23 +221,6 @@ export default function DashboardPage() {
     };
   }, [user, currentFolder, isTokenReady, retryCount]);
 
-  // Usage
-  useEffect(() => {
-    if (!user || !isTokenReady) return;
-    const usageQuery = query(
-      collection(firestore, "usage"),
-      where("userId", "==", user.uid)
-    );
-    const cleanup = onSnapshotWithRetry(
-      usageQuery,
-      (snapshot) => {
-        if (!snapshot.empty) setUsage(snapshot.docs[0].data() as UsageData);
-      },
-      { maxRetries: 3, retryDelay: 2000 }
-    );
-    return cleanup;
-  }, [user, isTokenReady]);
-
   // Navigation helpers
   const handleFolderNavigate = useCallback((folder: FolderData | null) => {
     setCurrentFolder(folder);
@@ -344,14 +318,11 @@ export default function DashboardPage() {
 
     if (!(looksMobile && window.innerWidth <= 1024)) return;
 
-    // -----------------
-    // Helpers/selectors
-    // -----------------
     const isFolderCard = (start: HTMLElement | null): HTMLElement | null => {
       if (!start) return null;
       return start.closest(
         [
-          "[data-folder-id]", // preferred (added in FileList)
+          "[data-folder-id]",
           ".folder-card",
           "[role='row'][data-kind='folder']",
           "[data-item='folder']",
@@ -441,19 +412,16 @@ export default function DashboardPage() {
       const trigger = findTrigger(card) || findTrigger(target);
 
       if (trigger) {
-        trigger.focus?.();
-        fireMouseSequence(trigger);
-        firePointerSequence(trigger);
-        fireContextMenuAt(trigger, x, y); // fallback
+        (trigger as HTMLElement).focus?.();
+        fireMouseSequence(trigger as HTMLElement);
+        firePointerSequence(trigger as HTMLElement);
+        fireContextMenuAt(trigger as HTMLElement, x, y); // fallback
       } else {
         fireContextMenuAt(target, x, y);
         if (card && card !== target) fireContextMenuAt(card, x, y);
       }
     };
 
-    // -----------------
-    // Long-press (3s)
-    // -----------------
     let holdTimer: number | null = null;
     let startX = 0;
     let startY = 0;
@@ -462,14 +430,11 @@ export default function DashboardPage() {
     const LONG_PRESS_MS = 3000;
     const originalTouchAction = el.style.touchAction;
 
-    // -----------------
-    // Double-tap logic
-    // -----------------
     let lastTapTime = 0;
     let lastTapCard: HTMLElement | null = null;
     let suppressNextClick = false;
     const DOUBLE_TAP_MS = 350;
-    const QUICK_TAP_MS = 250; // touch duration threshold to be considered a tap (not long press)
+    const QUICK_TAP_MS = 250;
     let touchStartAt = 0;
 
     const clearHold = () => {
@@ -490,12 +455,11 @@ export default function DashboardPage() {
       startY = t.clientY;
       touchStartAt = Date.now();
 
-      // begin long hold; lock scroll (helps reduce drift)
       holding = true;
       el.style.touchAction = "none";
       holdTimer = window.setTimeout(() => {
         try {
-          e.preventDefault(); // suppress iOS callout
+          e.preventDefault();
         } catch {}
         openActionsAt(startX, startY);
         if (navigator.vibrate) navigator.vibrate(10);
@@ -514,14 +478,11 @@ export default function DashboardPage() {
     };
 
     const onTouchEnd = (e: TouchEvent) => {
-      // end long-press timer if not fired
       const duration = Date.now() - touchStartAt;
       const endTarget = e.target as HTMLElement | null;
 
-      // If long press already handled, we're done
       if (!holdTimer && !holding) return;
 
-      // Not a long press -> consider for double-tap
       if (duration < QUICK_TAP_MS) {
         const folder = isFolderCard(endTarget);
         if (folder) {
@@ -533,10 +494,12 @@ export default function DashboardPage() {
 
           if (withinWindow && sameCard) {
             const openTarget =
-              folder.querySelector("a,button,[role='button']") || folder;
+              (folder.querySelector(
+                "a,button,[role='button']"
+              ) as HTMLElement) || folder;
             if (navigator.vibrate) navigator.vibrate(5);
             suppressNextClick = false;
-            (openTarget as HTMLElement).click();
+            openTarget.click();
             lastTapTime = 0;
             lastTapCard = null;
           } else {
@@ -557,7 +520,6 @@ export default function DashboardPage() {
 
     const onTouchCancel = () => clearHold();
 
-    // Cancel the actual click generated by the first tap on folder
     const onClickCapture = (e: MouseEvent) => {
       if (!suppressNextClick) return;
       const target = e.target as HTMLElement | null;
@@ -565,12 +527,11 @@ export default function DashboardPage() {
       if (folder) {
         e.preventDefault();
         e.stopPropagation();
-        e.stopImmediatePropagation?.();
-        suppressNextClick = false; // only suppress one click
+        (e as any).stopImmediatePropagation?.();
+        suppressNextClick = false;
       }
     };
 
-    // Attach listeners
     el.addEventListener("touchstart", onTouchStart, { passive: false });
     el.addEventListener("touchmove", onTouchMove, { passive: false });
     el.addEventListener("touchend", onTouchEnd, { passive: true });
@@ -605,40 +566,6 @@ export default function DashboardPage() {
 
   const hasItems = combinedItems.length > 0;
 
-  const PermissionErrorRetry = () => (
-    <div className="bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
-      <div className="flex items-center gap-3">
-        <div className="flex-shrink-0">
-          <svg
-            className="h-5 w-5 text-yellow-600 dark:text-yellow-400"
-            fill="currentColor"
-            viewBox="0 0 20 20"
-          >
-            <path
-              fillRule="evenodd"
-              d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-              clipRule="evenodd"
-            />
-          </svg>
-        </div>
-        <div className="flex-1">
-          <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
-            Connection Issue
-          </h3>
-          <p className="mt-1 text-xs sm:text-sm text-yellow-700 dark:text-yellow-300">
-            Retrying automatically…
-          </p>
-        </div>
-        <button
-          onClick={() => setRetryCount((prev) => prev + 1)}
-          className="text-sm text-yellow-700 dark:text-yellow-300 hover:underline"
-        >
-          Retry
-        </button>
-      </div>
-    </div>
-  );
-
   return (
     <div
       ref={swipeRef as any}
@@ -661,7 +588,12 @@ export default function DashboardPage() {
         <div className="flex items-center gap-2">
           <CreateFolderDialog
             currentFolder={currentFolder}
-            onSuccess={handleCreateFolderSuccess}
+            onSuccess={() => {
+              toast.success("Folder created!");
+              showSuccess("Folder created", "Your new folder is ready.", {
+                autoCloseDuration: 2500,
+              });
+            }}
           >
             <Button
               variant="outline"
@@ -672,12 +604,7 @@ export default function DashboardPage() {
             </Button>
           </CreateFolderDialog>
 
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={handleUploadTrigger}
-            className=""
-          >
+          <Button variant="secondary" size="sm" onClick={handleUploadTrigger} className={undefined}>
             Upload
           </Button>
 
@@ -691,24 +618,8 @@ export default function DashboardPage() {
       {/* Main fits the rest exactly; prefer 100dvh where supported to prevent iOS jump */}
       <main className="h-[calc(100svh-56px)] supports-[height:100dvh]:h-[calc(100dvh-56px)] px-3 sm:px-4 py-3 overflow-hidden">
         <div className="grid h-full grid-cols-12 gap-3 min-h-0">
-          {/* LEFT RAIL — hidden on mobile to maximize canvas */}
-          <aside className="hidden lg:grid lg:col-span-3 grid-rows-[84px_1fr_132px] gap-3 min-h-0 overflow-hidden">
-            <section className="rounded-2xl border bg-card p-3 overflow-hidden">
-              <div className="h-full min-h-0 overflow-hidden">
-                <FolderBreadcrumb
-                  currentFolder={currentFolder}
-                  folderHierarchy={folderHierarchy}
-                  onNavigate={handleFolderNavigate}
-                  onNavigateToParent={navigateToParent}
-                />
-                {permissionError && (
-                  <div className="mt-2">
-                    <PermissionErrorRetry />
-                  </div>
-                )}
-              </div>
-            </section>
-
+          {/* LEFT RAIL — only Drag & Drop and Free Quota */}
+          <aside className="hidden lg:grid lg:col-span-3 grid-rows-[1fr_auto] gap-3 min-h-0 overflow-hidden">
             <section className="rounded-2xl border bg-card p-3 overflow-hidden min-h-0">
               <div className="h-full min-h-0 overflow-hidden">
                 <UploadArea
@@ -721,7 +632,7 @@ export default function DashboardPage() {
 
             <section className="rounded-2xl border bg-card p-3 overflow-hidden">
               <div className="h-full min-h-0 overflow-hidden">
-                <UsageBar usage={usage} />
+                <UsageBar />
               </div>
             </section>
           </aside>
@@ -739,9 +650,7 @@ export default function DashboardPage() {
                   size="icon"
                   aria-label="Previous page"
                   onClick={handlePrev}
-                  disabled={!canPrev}
-                  className=""
-                >
+                  disabled={!canPrev} className={undefined}                >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <Button
@@ -749,9 +658,7 @@ export default function DashboardPage() {
                   size="icon"
                   aria-label="Next page"
                   onClick={handleNext}
-                  disabled={!canNext}
-                  className=""
-                >
+                  disabled={!canNext} className={undefined}                >
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
@@ -816,18 +723,14 @@ export default function DashboardPage() {
                   variant="outline"
                   size="sm"
                   onClick={handlePrev}
-                  disabled={!canPrev}
-                  className=""
-                >
+                  disabled={!canPrev} className={undefined}                >
                   Prev
                 </Button>
                 <Button
                   variant="default"
                   size="sm"
                   onClick={handleNext}
-                  disabled={!canNext}
-                  className=""
-                >
+                  disabled={!canNext} className={undefined}                >
                   Next
                 </Button>
               </div>
@@ -857,6 +760,7 @@ export default function DashboardPage() {
           </CreateFolderDialog>
         </div>
       </div>
+
       <style jsx global>{`
         /* Mobile-only helpers */
         @media (max-width: 1024px) {

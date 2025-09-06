@@ -2,6 +2,39 @@ import { NextRequest, NextResponse } from 'next/server'
 import { adminFirestore, adminStorage, verifyIdToken } from '@/lib/firebaseAdmin'
 import { cookies } from 'next/headers'
 
+// Helper function to log quota activity
+async function logQuotaActivity(userId: string, action: 'upload' | 'delete', bytes: number) {
+  try {
+    await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/quota/activity`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, action, bytes })
+    })
+  } catch (error) {
+    console.warn('Failed to log quota activity:', error)
+  }
+}
+
+// Helper function to check quota before upload
+async function checkQuotaBeforeUpload(userId: string, fileSize: number) {
+  try {
+    const quotaRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/quota?projectId=default`)
+    const quota = await quotaRes.json()
+    
+    if (quota.usedBytes + fileSize > quota.limitBytes) {
+      return {
+        allowed: false,
+        message: `Upload would exceed quota limit. Current: ${Math.round(quota.usedBytes / (1024*1024))}MB, Limit: ${Math.round(quota.limitBytes / (1024*1024))}MB, File: ${Math.round(fileSize / (1024*1024))}MB`
+      }
+    }
+    
+    return { allowed: true }
+  } catch (error) {
+    console.warn('Failed to check quota, allowing upload:', error)
+    return { allowed: true }
+  }
+}
+
 // Handle file upload validation and server-side processing
 export async function POST(request: NextRequest) {
   console.log('🔥 API DEBUG: POST /api/files called')
@@ -50,7 +83,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    // Additional server-side validation could go here
+    // Check quota before allowing upload
+    if (userId) {
+      const quotaCheck = await checkQuotaBeforeUpload(userId, fileSize)
+      if (!quotaCheck.allowed) {
+        console.error('❌ API DEBUG: Quota exceeded:', quotaCheck.message)
+        return NextResponse.json({ error: quotaCheck.message }, { status: 413 }) // Payload Too Large
+      }
+
+      // Log upload activity for quota tracking
+      await logQuotaActivity(userId, 'upload', fileSize)
+    }
+
     console.log('✅ API DEBUG: Upload validation passed')
     
     return NextResponse.json({
@@ -103,10 +147,23 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { fileId, storagePath } = await request.json()
+    const { fileId, storagePath, fileSize, userId } = await request.json()
 
     if (!fileId) {
       return NextResponse.json({ error: 'File ID is required' }, { status: 400 })
+    }
+
+    // Get file info from Firestore if fileSize not provided
+    let deletionSize = fileSize
+    if (!deletionSize && fileId) {
+      try {
+        const fileDoc = await adminFirestore.collection('files').doc(fileId).get()
+        if (fileDoc.exists) {
+          deletionSize = fileDoc.data()?.size || 0
+        }
+      } catch (error) {
+        console.warn('Could not get file size for quota tracking:', error)
+      }
     }
 
     // Delete from Firestore
@@ -119,6 +176,11 @@ export async function DELETE(request: NextRequest) {
       } catch (storageError) {
         console.warn('File may not exist in storage:', storageError)
       }
+    }
+
+    // Log deletion activity for quota tracking (deletions still count until monthly reset)
+    if (deletionSize && userId) {
+      await logQuotaActivity(userId, 'delete', deletionSize)
     }
 
     return NextResponse.json({ success: true })

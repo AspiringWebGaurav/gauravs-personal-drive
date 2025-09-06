@@ -1,7 +1,38 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Personal use rules - authenticated users can read/write anywhere
+    // Quota system collections (server-side writes only)
+    match /usage_events/{id} {
+      allow read: if request.auth != null;
+      allow write: if false; // Only server can write via Admin SDK
+    }
+    match /usage_snapshots/{id} {
+      allow read: if request.auth != null;
+      allow write: if false; // Only server can write via Admin SDK
+    }
+    
+    // User files and folders - authenticated users can read/write their own data
+    match /files/{fileId} {
+      allow read, write: if request.auth != null &&
+        request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null &&
+        request.auth.uid == request.resource.data.userId;
+    }
+    
+    match /folders/{folderId} {
+      allow read, write: if request.auth != null &&
+        request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null &&
+        request.auth.uid == request.resource.data.userId;
+    }
+    
+    // Legacy usage collection (for backwards compatibility)
+    match /usage/{userId} {
+      allow read, write: if request.auth != null &&
+        request.auth.uid == userId;
+    }
+    
+    // Default fallback for other collections (more restrictive)
     match /{document=**} {
       allow read, write: if request.auth != null;
     }

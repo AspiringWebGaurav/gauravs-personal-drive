@@ -26,6 +26,11 @@ export const adminAuth = getAuth(adminApp)
 export const adminFirestore = getFirestore(adminApp)
 export const adminStorage = getStorage(adminApp)
 
+// Simplified getDb function for quota system
+export function getDb() {
+  return adminFirestore
+}
+
 // Helper functions for server-side operations
 export const verifyIdToken = async (token: string) => {
   try {
