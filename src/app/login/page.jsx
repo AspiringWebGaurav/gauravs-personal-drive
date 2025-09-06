@@ -6,36 +6,118 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { Loader2 } from 'lucide-react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRedirectIfAuthenticated } from '@/components/providers/AuthProvider'
 import { toast } from 'sonner'
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { AuthLoadingSpinner } from '@/components/ui/AuthLoadingSpinner'
+import { AuthErrorHandler } from '@/components/ui/AuthErrorHandler'
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const redirect = searchParams.get('redirect') || '/dashboard'
+  const [loadingStep, setLoadingStep] = useState('')
+  const [authError, setAuthError] = useState(null)
+  const [retryCount, setRetryCount] = useState(0)
+  const { loading } = useRedirectIfAuthenticated()
 
   const handleGoogleSignIn = async () => {
     try {
       setIsLoading(true)
+      setAuthError(null)
+      setLoadingStep('Opening Google Sign-in...')
+      
+      // Add a small delay to show the initial loading state
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      const startTime = Date.now()
       const result = await signInWithGoogle()
+      const duration = Date.now() - startTime
       
       if (result.success) {
+        setLoadingStep('Setting up your session...')
         toast.success('Welcome to Gaurav\'s Personal Drive!')
-        router.push(redirect)
+        console.log(`🎉 Total sign-in process completed in ${duration}ms`)
+        setRetryCount(0) // Reset retry count on success
+        // No need for manual redirect - useRedirectIfAuthenticated hook handles this
       } else {
-        toast.error(result.error || 'Failed to sign in')
+        console.error('Sign in failed:', result.error)
+        
+        // Handle specific error types
+        let errorType = 'UNKNOWN_ERROR'
+        if (result.error?.includes('popup-blocked')) {
+          errorType = 'POPUP_BLOCKED'
+        } else if (result.error?.includes('popup-closed')) {
+          errorType = 'POPUP_CLOSED'
+        } else if (result.error?.includes('network')) {
+          errorType = 'NETWORK_ERROR'
+        } else if (result.error?.includes('timeout')) {
+          errorType = 'TIMEOUT'
+        }
+        
+        setAuthError(errorType)
+        setLoadingStep('')
+        setIsLoading(false)
       }
     } catch (error) {
       console.error('Sign in error:', error)
-      toast.error('An unexpected error occurred')
-    } finally {
+      
+      // Determine error type
+      let errorType = 'UNKNOWN_ERROR'
+      if (error.message?.includes('network') || error.message?.includes('fetch')) {
+        errorType = 'NETWORK_ERROR'
+      } else if (error.message?.includes('timeout')) {
+        errorType = 'TIMEOUT'
+      }
+      
+      setAuthError(errorType)
+      setLoadingStep('')
       setIsLoading(false)
     }
   }
 
+  const handleRetry = () => {
+    setRetryCount(prev => prev + 1)
+    handleGoogleSignIn()
+  }
+
+  const handleHardRefresh = () => {
+    // The AuthErrorHandler will handle the hard refresh
+    console.log('Hard refresh requested from login page')
+  }
+
+  // Show loading spinner while auth state is being determined
+  if (loading) {
+    return <LoadingSpinner />
+  }
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4">
+    <>
+      {/* Full-screen loading overlay when signing in */}
+      {isLoading && (
+        <AuthLoadingSpinner
+          step={loadingStep}
+          onTimeout={() => {
+            setAuthError('TIMEOUT')
+            setIsLoading(false)
+          }}
+          onHardRefresh={handleHardRefresh}
+          timeoutMs={25000} // 25 second timeout for login
+          showRecoveryAfter={12000} // Show recovery after 12 seconds
+        />
+      )}
+      
+      {/* Error handler overlay */}
+      {authError && (
+        <AuthErrorHandler
+          error={authError}
+          onRetry={handleRetry}
+          onHardRefresh={handleHardRefresh}
+          isRetrying={isLoading}
+          retryCount={retryCount}
+          maxRetries={3}
+        />
+      )}
+      
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4">
       {/* Background pattern */}
       <div className="absolute inset-0 opacity-20">
         <div className="absolute inset-0 bg-gradient-to-br from-blue-100/50 to-purple-100/50 dark:from-blue-900/20 dark:to-purple-900/20"></div>
@@ -90,10 +172,17 @@ export default function LoginPage() {
                 variant="outline"
               >
                 {isLoading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 mr-3 animate-spin" />
-                    Signing in...
-                  </>
+                  <div className="flex flex-col items-center space-y-2">
+                    <div className="flex items-center">
+                      <Loader2 className="w-5 h-5 mr-3 animate-spin" />
+                      Signing in...
+                    </div>
+                    {loadingStep && (
+                      <div className="text-sm text-muted-foreground/70 animate-pulse">
+                        {loadingStep}
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <>
                     <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24">
@@ -132,6 +221,7 @@ export default function LoginPage() {
         <div className="absolute -top-4 -left-4 w-24 h-24 bg-gradient-to-br from-blue-400/20 to-purple-400/20 rounded-full blur-xl"></div>
         <div className="absolute -bottom-4 -right-4 w-32 h-32 bg-gradient-to-br from-purple-400/20 to-pink-400/20 rounded-full blur-xl"></div>
       </div>
-    </div>
+      </div>
+    </>
   )
 }

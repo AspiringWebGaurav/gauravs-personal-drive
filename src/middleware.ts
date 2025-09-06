@@ -12,8 +12,10 @@ export async function middleware(request: NextRequest) {
   // Get the session token from cookies
   const sessionToken = request.cookies.get('session')?.value
 
+  console.log(`🔍 Middleware: ${pathname}, Session: ${sessionToken ? 'Yes' : 'No'}`)
+
   // Check if the current path is a protected route
-  const isProtectedRoute = protectedRoutes.some(route => 
+  const isProtectedRoute = protectedRoutes.some(route =>
     pathname.startsWith(route)
   )
 
@@ -22,6 +24,7 @@ export async function middleware(request: NextRequest) {
 
   // If trying to access a protected route without authentication
   if (isProtectedRoute && !sessionToken) {
+    console.log('🔒 Protected route without session, redirecting to login')
     const loginUrl = new URL('/login', request.url)
     // Add redirect parameter to go back after login
     loginUrl.searchParams.set('redirect', pathname)
@@ -30,19 +33,23 @@ export async function middleware(request: NextRequest) {
 
   // If authenticated user tries to access login page, redirect to dashboard
   if (isAuthRoute && sessionToken && pathname === '/login') {
+    console.log('✅ Authenticated user on login page, redirecting to dashboard')
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
   // If authenticated user is on homepage, redirect to dashboard
   if (pathname === '/' && sessionToken) {
+    console.log('✅ Authenticated user on homepage, redirecting to dashboard')
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
   // If unauthenticated user is on homepage, redirect to login
   if (pathname === '/' && !sessionToken) {
+    console.log('🔒 Unauthenticated user on homepage, redirecting to login')
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
+  console.log('✅ Allowing request to continue')
   // Allow the request to continue
   return NextResponse.next()
 }

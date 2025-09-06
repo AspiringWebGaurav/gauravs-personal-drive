@@ -15,13 +15,26 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "Gaurav's Personal Drive",
-  description: "Your secure cloud storage solution. Fast, minimal, and built for personal use.",
-  keywords: "cloud storage, file sharing, personal drive, secure storage",
+  title: {
+    default: "Gaurav's Personal Drive",
+    template: "%s | Gaurav's Personal Drive"
+  },
+  description: "Your secure cloud storage solution. Fast, minimal, and built for personal use with advanced authentication and recovery features.",
+  keywords: "cloud storage, file sharing, personal drive, secure storage, authentication, file management",
   authors: [{ name: "Gaurav" }],
   creator: "Gaurav",
   publisher: "Gaurav",
   robots: "noindex, nofollow", // Since this is for personal use
+  openGraph: {
+    title: "Gaurav's Personal Drive",
+    description: "Secure cloud storage solution with advanced authentication",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "Gaurav's Personal Drive",
+    description: "Secure cloud storage solution with advanced authentication",
+  }
 };
 
 export const viewport = {
@@ -36,6 +49,13 @@ export const viewport = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#3b82f6" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="Personal Drive" />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
       >

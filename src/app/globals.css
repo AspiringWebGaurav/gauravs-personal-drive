@@ -182,6 +182,14 @@
     animation: slideUp 0.3s ease-out;
   }
   
+  .animate-slide-left {
+    animation: slideLeft 0.3s ease-out;
+  }
+  
+  .animate-slide-right {
+    animation: slideRight 0.3s ease-out;
+  }
+  
   @keyframes fadeIn {
     from { opacity: 0; }
     to { opacity: 1; }
@@ -195,6 +203,28 @@
     to {
       opacity: 1;
       transform: translateY(0);
+    }
+  }
+  
+  @keyframes slideLeft {
+    from {
+      opacity: 0;
+      transform: translateX(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+  
+  @keyframes slideRight {
+    from {
+      opacity: 0;
+      transform: translateX(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
     }
   }
   

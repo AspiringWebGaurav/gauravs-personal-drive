@@ -15,9 +15,10 @@ import type { User } from '@/types'
 export const signInWithGoogle = async () => {
   try {
     console.log('🔐 Starting Google sign-in...')
+    const signInStartTime = Date.now()
     const result = await signInWithPopup(auth, googleProvider)
     const user = result.user
-    console.log('✅ Google sign-in successful for user:', user.email)
+    console.log('✅ Google sign-in successful for user:', user.email, 'in', Date.now() - signInStartTime, 'ms')
 
     // Create or update user document in Firestore
     console.log('📄 Creating/updating user document in Firestore...')
@@ -89,7 +90,11 @@ export const signOut = async () => {
 
 // Auth state listener
 export const onAuthStateChange = (callback: (user: FirebaseUser | null) => void) => {
-  return onAuthStateChanged(auth, callback)
+  console.log('🔗 Setting up auth state change listener')
+  return onAuthStateChanged(auth, (user) => {
+    console.log('🔄 Auth state changed:', user ? `User: ${user.email}` : 'No user')
+    callback(user)
+  })
 }
 
 // Get current user

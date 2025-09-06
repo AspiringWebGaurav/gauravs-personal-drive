@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { useAuth } from '@/components/providers/AuthProvider'
 import { Button } from '@/components/ui/button'
@@ -12,10 +12,11 @@ import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage'
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
 import { toast } from 'sonner'
 
-export function UploadArea({ currentFolder, onUploadComplete }) {
+export function UploadArea({ currentFolder, onUploadComplete, onRegisterTrigger }) {
   const { user } = useAuth()
   const [uploads, setUploads] = useState([])
   const [isDragActive, setIsDragActive] = useState(false)
+  const openRef = useRef(null)
 
   const formatFileSize = (bytes) => {
     if (bytes === 0) return '0 Bytes'
@@ -25,12 +26,46 @@ export function UploadArea({ currentFolder, onUploadComplete }) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
   }
 
-  const uploadFile = async (file) => {
-    if (!user) return
+  const uploadFile = useCallback(async (file) => {
+    console.log('🚀 UPLOAD DEBUG: Starting upload for file:', {
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      lastModified: file.lastModified
+    })
+    
+    if (!user) {
+      console.error('❌ UPLOAD DEBUG: No user authenticated')
+      toast.error('Please sign in to upload files')
+      return
+    }
+
+    console.log('👤 UPLOAD DEBUG: User info:', {
+      uid: user.uid,
+      email: user.email,
+      accessToken: !!user.accessToken
+    })
+
+    // Check if user token is still valid
+    try {
+      const token = await user.getIdToken()
+      console.log('🔑 UPLOAD DEBUG: Got valid token:', !!token)
+    } catch (error) {
+      console.error('❌ UPLOAD DEBUG: Token validation failed:', error)
+      toast.error('Authentication expired. Please refresh the page.')
+      return
+    }
 
     const uploadId = Date.now() + Math.random()
     const fileName = file.name
     const storagePath = `${user.uid}/${uploadId}_${fileName}`
+    
+    console.log('📁 UPLOAD DEBUG: Upload configuration:', {
+      uploadId,
+      fileName,
+      storagePath,
+      currentFolder: currentFolder?.id || 'root'
+    })
     
     // Add upload to state
     setUploads(prev => [...prev, {
@@ -43,32 +78,44 @@ export function UploadArea({ currentFolder, onUploadComplete }) {
 
     try {
       const storageRef = ref(storage, storagePath)
+      console.log('🔥 UPLOAD DEBUG: Created storage reference:', storagePath)
       const uploadTask = uploadBytesResumable(storageRef, file)
 
       uploadTask.on('state_changed',
         (snapshot) => {
           const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100
-          setUploads(prev => prev.map(upload => 
-            upload.id === uploadId 
+          console.log(`📊 UPLOAD DEBUG: Progress for ${fileName}: ${Math.round(progress)}% (${snapshot.bytesTransferred}/${snapshot.totalBytes} bytes)`)
+          
+          setUploads(prev => prev.map(upload =>
+            upload.id === uploadId
               ? { ...upload, progress: Math.round(progress) }
               : upload
           ))
         },
         (error) => {
-          console.error('Upload error:', error)
-          setUploads(prev => prev.map(upload => 
-            upload.id === uploadId 
+          console.error('❌ UPLOAD DEBUG: Storage upload error:', {
+            code: error.code,
+            message: error.message,
+            fileName: fileName,
+            storagePath: storagePath,
+            error: error
+          })
+          
+          setUploads(prev => prev.map(upload =>
+            upload.id === uploadId
               ? { ...upload, status: 'error' }
               : upload
           ))
-          toast.error(`Failed to upload ${fileName}`)
+          toast.error(`Failed to upload ${fileName}: ${error.message}`)
         },
         async () => {
+          console.log('✅ UPLOAD DEBUG: Storage upload completed for:', fileName)
+          
           try {
             const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
+            console.log('🔗 UPLOAD DEBUG: Got download URL:', downloadURL.substring(0, 50) + '...')
             
-            // Save file metadata to Firestore
-            await addDoc(collection(firestore, 'files'), {
+            const metadata = {
               userId: user.uid,
               filename: fileName,
               size: file.size,
@@ -78,10 +125,16 @@ export function UploadArea({ currentFolder, onUploadComplete }) {
               folderId: currentFolder?.id || null,
               createdAt: serverTimestamp(),
               updatedAt: serverTimestamp()
-            })
+            }
+            
+            console.log('💾 UPLOAD DEBUG: Saving metadata to Firestore:', metadata)
+            
+            // Save file metadata to Firestore
+            const docRef = await addDoc(collection(firestore, 'files'), metadata)
+            console.log('✅ UPLOAD DEBUG: Metadata saved with ID:', docRef.id)
 
-            setUploads(prev => prev.map(upload => 
-              upload.id === uploadId 
+            setUploads(prev => prev.map(upload =>
+              upload.id === uploadId
                 ? { ...upload, status: 'completed', progress: 100 }
                 : upload
             ))
@@ -92,36 +145,138 @@ export function UploadArea({ currentFolder, onUploadComplete }) {
             }, 2000)
 
             toast.success(`${fileName} uploaded successfully!`)
+            
+            // Call onUploadComplete callback if provided
+            if (onUploadComplete) {
+              console.log('🔄 UPLOAD DEBUG: Calling onUploadComplete callback')
+              onUploadComplete()
+            }
           } catch (error) {
-            console.error('Error saving file metadata:', error)
-            setUploads(prev => prev.map(upload => 
-              upload.id === uploadId 
+            console.error('❌ UPLOAD DEBUG: Firestore metadata save error:', {
+              code: error.code,
+              message: error.message,
+              fileName: fileName,
+              error: error,
+              userUid: user.uid,
+              currentFolder: currentFolder?.id
+            })
+            
+            setUploads(prev => prev.map(upload =>
+              upload.id === uploadId
                 ? { ...upload, status: 'error' }
                 : upload
             ))
-            toast.error(`Failed to save ${fileName}`)
+            toast.error(`Failed to save ${fileName}: ${error.message}`)
           }
         }
       )
     } catch (error) {
-      console.error('Upload error:', error)
-      toast.error(`Failed to upload ${fileName}`)
+      console.error('❌ UPLOAD DEBUG: General upload error:', {
+        code: error.code,
+        message: error.message,
+        fileName: fileName,
+        storagePath: storagePath,
+        error: error
+      })
+      
+      setUploads(prev => prev.map(upload =>
+        upload.id === uploadId
+          ? { ...upload, status: 'error' }
+          : upload
+      ))
+      toast.error(`Failed to upload ${fileName}: ${error.message}`)
     }
-  }
+  }, [user, currentFolder, onUploadComplete])
 
-  const onDrop = useCallback((acceptedFiles) => {
-    acceptedFiles.forEach(uploadFile)
+  const onDrop = useCallback((acceptedFiles, rejectedFiles) => {
+    // Handle rejected files
+    if (rejectedFiles?.length > 0) {
+      rejectedFiles.forEach(({ file, errors }) => {
+        const errorMessages = errors.map(e => {
+          if (e.code === 'file-too-large') return `${file.name} is too large (max 100MB)`
+          if (e.code === 'file-invalid-type') return `${file.name} has an unsupported file type`
+          return `${file.name}: ${e.message}`
+        })
+        errorMessages.forEach(msg => toast.error(msg))
+      })
+    }
+
+    // Handle accepted files
+    if (acceptedFiles?.length > 0) {
+      acceptedFiles.forEach(uploadFile)
+      toast.success(`Starting upload of ${acceptedFiles.length} file${acceptedFiles.length > 1 ? 's' : ''}`)
+    }
+
     setIsDragActive(false)
-  }, [currentFolder, user])
+  }, [uploadFile])
+
+  const onDragEnter = useCallback(() => {
+    setIsDragActive(true)
+  }, [])
+
+  const onDragLeave = useCallback((e) => {
+    // Only set drag inactive if leaving the dropzone completely
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+      setIsDragActive(false)
+    }
+  }, [])
+
+  const onDragOver = useCallback((e) => {
+    e.preventDefault()
+    setIsDragActive(true)
+  }, [])
 
   const { getRootProps, getInputProps, open } = useDropzone({
     onDrop,
-    onDragEnter: () => setIsDragActive(true),
-    onDragLeave: () => setIsDragActive(false),
+    onDragEnter,
+    onDragLeave,
+    onDragOver,
     noClick: true,
     noKeyboard: true,
     maxSize: 100 * 1024 * 1024, // 100MB
+    accept: {
+      'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'],
+      'video/*': ['.mp4', '.webm', '.ogg', '.avi', '.mov'],
+      'audio/*': ['.mp3', '.wav', '.ogg', '.aac'],
+      'application/pdf': ['.pdf'],
+      'text/*': ['.txt', '.md', '.json', '.xml', '.csv'],
+      'application/*': ['.zip', '.rar', '.7z', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx']
+    },
+    multiple: true
   })
+
+  // Store the open function in a ref
+  useEffect(() => {
+    openRef.current = open
+  }, [open])
+
+  // Register the file picker trigger with parent component (only once)
+  useEffect(() => {
+    if (onRegisterTrigger) {
+      console.log('🔍 DEBUG: UploadArea useEffect - Registering upload trigger function')
+      
+      const triggerUpload = () => {
+        console.log('🔍 DEBUG: triggerUpload called - openRef.current available:', !!openRef.current)
+        if (openRef.current) {
+          console.log('🔍 DEBUG: About to call openRef.current()')
+          try {
+            openRef.current()
+            console.log('🔍 DEBUG: openRef.current() called successfully')
+          } catch (error) {
+            console.error('🔍 DEBUG: Error calling openRef.current():', error)
+          }
+        }
+      }
+      
+      console.log('🔍 DEBUG: About to call onRegisterTrigger - no state update, just ref assignment')
+      try {
+        onRegisterTrigger(triggerUpload)
+        console.log('🔍 DEBUG: onRegisterTrigger called successfully')
+      } catch (error) {
+        console.error('🔍 DEBUG: Error in onRegisterTrigger:', error)
+      }
+    }
+  }, [onRegisterTrigger])
 
   const removeUpload = (uploadId) => {
     setUploads(prev => prev.filter(upload => upload.id !== uploadId))
@@ -130,47 +285,84 @@ export function UploadArea({ currentFolder, onUploadComplete }) {
   return (
     <div className="space-y-4">
       {/* Upload Area */}
-      <Card 
-        {...getRootProps()} 
-        className={`upload-area transition-all duration-200 ${
-          isDragActive ? 'upload-area-active scale-[1.02]' : ''
-        }`}
+      <Card
+        {...getRootProps()}
+        className={`upload-area relative overflow-hidden transition-all duration-300 ${
+          isDragActive
+            ? 'upload-area-active scale-[1.02] shadow-2xl border-primary/60'
+            : 'hover:scale-[1.01] hover:shadow-lg'
+        } ${uploads.length > 0 ? 'mb-2' : ''}`}
+        style={{
+          background: isDragActive
+            ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.05) 0%, rgba(147, 51, 234, 0.05) 100%)'
+            : undefined
+        }}
       >
         <CardContent className="flex flex-col items-center justify-center py-12 px-6">
-          <div className="mb-6">
-            <div className={`flex items-center justify-center w-16 h-16 mx-auto rounded-full transition-all duration-200 ${
-              isDragActive 
-                ? 'bg-primary/20 text-primary scale-110' 
-                : 'bg-muted/20 text-muted-foreground'
+          {/* Animated background pattern when dragging */}
+          {isDragActive && (
+            <div className="absolute inset-0 opacity-10">
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-500/20 animate-pulse" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(59,130,246,0.1),transparent_70%)] animate-ping" />
+            </div>
+          )}
+          
+          <div className="relative z-10 mb-6">
+            <div className={`flex items-center justify-center w-16 h-16 mx-auto rounded-full transition-all duration-300 ${
+              isDragActive
+                ? 'bg-primary/30 text-primary scale-125 shadow-lg'
+                : 'bg-muted/20 text-muted-foreground hover:bg-muted/30'
             }`}>
-              <Upload className="w-8 h-8" />
+              <Upload className={`transition-all duration-300 ${
+                isDragActive ? 'w-10 h-10 animate-bounce' : 'w-8 h-8'
+              }`} />
             </div>
           </div>
           
-          <div className="text-center space-y-2">
-            <p className="text-lg font-medium">
-              {isDragActive ? 'Drop files here' : 'Drag & drop files here'}
+          <div className="relative z-10 text-center space-y-2">
+            <p className={`text-lg font-medium transition-all duration-200 ${
+              isDragActive ? 'text-primary scale-105' : ''
+            }`}>
+              {isDragActive ? 'Drop files here to upload' : 'Drag & drop files here'}
             </p>
             <p className="text-sm text-muted-foreground">
-              or click to select files
+              {isDragActive ? 'Release to start uploading' : 'or click the button below to browse files'}
             </p>
           </div>
 
           <Button
             onClick={open}
-            className="mt-6 glass-button"
+            className={`mt-6 glass-button transition-all duration-200 ${
+              isDragActive ? 'scale-105 bg-primary/20' : 'hover:scale-105'
+            }`}
             size="lg"
+            disabled={uploads.some(upload => upload.status === 'uploading')}
           >
             <Upload className="w-5 h-5 mr-2" />
-            Choose Files
+            {uploads.some(upload => upload.status === 'uploading') ? 'Uploading...' : 'Choose Files'}
           </Button>
 
-          <p className="text-xs text-muted-foreground mt-4">
-            Maximum file size: 100MB
-          </p>
+          <div className="relative z-10 text-center mt-4 space-y-1">
+            <p className="text-xs text-muted-foreground">
+              Maximum file size: 100MB per file
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Supports: Images, Videos, Audio, Documents, Archives
+            </p>
+          </div>
 
           <input {...getInputProps()} />
         </CardContent>
+        
+        {/* Loading indicator overlay */}
+        {uploads.some(upload => upload.status === 'uploading') && (
+          <div className="absolute inset-0 bg-background/50 backdrop-blur-sm flex items-center justify-center">
+            <div className="text-center">
+              <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">Processing uploads...</p>
+            </div>
+          </div>
+        )}
       </Card>
 
       {/* Upload Progress */}

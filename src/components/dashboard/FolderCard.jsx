@@ -88,12 +88,32 @@ export function FolderCard({ folder, onOpen }) {
     onOpen(folder)
   }
 
+  const handleTouch = () => {
+    // On mobile, single tap to open folder
+    if ('ontouchstart' in window) {
+      onOpen(folder)
+    }
+  }
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      onOpen(folder)
+    }
+  }
+
   return (
-    <Card 
-      className="file-card group cursor-pointer"
+    <Card
+      className="file-card group cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all duration-200"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onDoubleClick={handleDoubleClick}
+      onTouchEnd={handleTouch}
+      onClick={handleTouch}
+      onKeyDown={handleKeyDown}
+      tabIndex={0}
+      role="button"
+      aria-label={`Open folder ${folder.name}`}
     >
       <CardContent className="p-4">
         {/* Folder icon */}

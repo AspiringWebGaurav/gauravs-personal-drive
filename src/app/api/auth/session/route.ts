@@ -4,24 +4,36 @@ import { cookies } from 'next/headers'
 
 // Set session cookie
 export async function POST(request: NextRequest) {
+  console.log('📥 Session API: POST request received')
+  const startTime = Date.now()
+  
   try {
-    const { token } = await request.json()
+    const requestBody = await request.json()
+    console.log('📊 Session API: Request body parsed in', Date.now() - startTime, 'ms')
+    const { token } = requestBody
 
     if (!token) {
+      console.error('❌ Session API: No token provided')
       return NextResponse.json(
-        { error: 'Token is required' },
+        { error: 'Token is required', code: 'NO_TOKEN' },
         { status: 400 }
       )
     }
 
+    console.log('🔍 Session API: Verifying ID token...')
+    const verifyStartTime = Date.now()
     // Verify the ID token
     const decodedToken = await adminAuth.verifyIdToken(token)
+    console.log('✅ Session API: Token verified for user:', decodedToken.uid, 'in', Date.now() - verifyStartTime, 'ms')
 
     // Create session cookie
     const expiresIn = 60 * 60 * 24 * 5 * 1000 // 5 days
+    console.log('🍪 Session API: Creating session cookie...')
+    const cookieStartTime = Date.now()
     const sessionCookie = await adminAuth.createSessionCookie(token, {
       expiresIn,
     })
+    console.log('🍪 Session API: Session cookie created in', Date.now() - cookieStartTime, 'ms')
 
     const cookieStore = await cookies()
 
@@ -34,14 +46,41 @@ export async function POST(request: NextRequest) {
       path: '/',
     })
 
+    console.log('✅ Session API: Session cookie set successfully')
+    console.log('📊 Session API: Total request time:', Date.now() - startTime, 'ms')
     return NextResponse.json(
       { success: true, uid: decodedToken.uid },
       { status: 200 }
     )
-  } catch (error) {
-    console.error('Error creating session:', error)
+  } catch (error: any) {
+    console.error('❌ Session API: Error creating session:', error)
+    console.error('❌ Session API: Error occurred after', Date.now() - startTime, 'ms')
+    console.error('❌ Session API: Error stack:', error.stack)
+    
+    // Provide more specific error responses
+    if (error.code === 'auth/id-token-expired') {
+      return NextResponse.json(
+        { error: 'Token expired', code: 'TOKEN_EXPIRED' },
+        { status: 401 }
+      )
+    }
+    
+    if (error.code === 'auth/id-token-revoked') {
+      return NextResponse.json(
+        { error: 'Token revoked', code: 'TOKEN_REVOKED' },
+        { status: 401 }
+      )
+    }
+    
+    if (error.code === 'auth/invalid-id-token') {
+      return NextResponse.json(
+        { error: 'Invalid token', code: 'INVALID_TOKEN' },
+        { status: 401 }
+      )
+    }
+
     return NextResponse.json(
-      { error: 'Failed to create session' },
+      { error: 'Failed to create session', code: 'SESSION_ERROR', details: error.message },
       { status: 500 }
     )
   }
@@ -50,6 +89,7 @@ export async function POST(request: NextRequest) {
 // Clear session cookie
 export async function DELETE() {
   try {
+    console.log('🗑️ Session API: Clearing session cookie...')
     const cookieStore = await cookies()
     
     // Clear the session cookie
@@ -61,14 +101,15 @@ export async function DELETE() {
       path: '/',
     })
 
+    console.log('✅ Session API: Session cookie cleared successfully')
     return NextResponse.json(
       { success: true },
       { status: 200 }
     )
   } catch (error) {
-    console.error('Error clearing session:', error)
+    console.error('❌ Session API: Error clearing session:', error)
     return NextResponse.json(
-      { error: 'Failed to clear session' },
+      { error: 'Failed to clear session', code: 'CLEAR_ERROR' },
       { status: 500 }
     )
   }
