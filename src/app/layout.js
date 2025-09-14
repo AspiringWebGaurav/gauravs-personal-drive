@@ -20,30 +20,67 @@ export const metadata = {
     default: "Gaurav's Personal Drive",
     template: "%s | Gaurav's Personal Drive"
   },
-  description: "Your secure cloud storage solution. Fast, minimal, and built for personal use with advanced authentication and recovery features.",
-  keywords: "cloud storage, file sharing, personal drive, secure storage, authentication, file management",
+  description: "Secure personal drive and file manager by Gaurav — fast uploads, private links, and anywhere access.",
+  keywords: ["personal drive", "cloud storage", "file manager", "uploads", "private links", "Gaurav"],
   authors: [{ name: "Gaurav" }],
   creator: "Gaurav",
   publisher: "Gaurav",
-  robots: "noindex, nofollow", // Since this is for personal use
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+    },
+  },
+  icons: {
+    icon: "/favicon.ico",
+    shortcut: "/icon-32x32.png",
+    apple: "/apple-touch-icon.png",
+    other: [
+      {
+        rel: "icon",
+        type: "image/png",
+        sizes: "16x16",
+        url: "/icon-16x16.png",
+      },
+      {
+        rel: "icon",
+        type: "image/png",
+        sizes: "32x32",
+        url: "/icon-32x32.png",
+      },
+    ],
+  },
+  themeColor: "#0fb9b1",
   openGraph: {
-    title: "Gaurav's Personal Drive",
-    description: "Secure cloud storage solution with advanced authentication",
     type: "website",
+    siteName: "Gaurav's Personal Drive",
+    title: "Gaurav's Personal Drive",
+    description: "Secure personal drive and file manager by Gaurav.",
+    images: [
+      {
+        url: "/icon-512x512.png",
+        width: 512,
+        height: 512,
+        alt: "Gaurav's Personal Drive",
+      },
+    ],
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: "Gaurav's Personal Drive",
-    description: "Secure cloud storage solution with advanced authentication",
-  }
+    description: "Secure personal drive and file manager by Gaurav.",
+    images: ["/icon-512x512.png"],
+  },
 };
 
 export const viewport = {
   width: "device-width",
   initialScale: 1,
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "white" },
-    { media: "(prefers-color-scheme: dark)", color: "black" },
+    { media: "(prefers-color-scheme: light)", color: "#0fb9b1" },
+    { media: "(prefers-color-scheme: dark)", color: "#0fb9b1" },
   ],
 };
 
@@ -52,10 +89,37 @@ export default function RootLayout({ children }) {
     <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#3b82f6" />
+        <link rel="preload" href="/icon-32x32.png" as="image" type="image/png" />
+        <meta name="theme-color" content="#0fb9b1" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="Personal Drive" />
+        <meta name="apple-mobile-web-app-title" content="Gaurav's Personal Drive" />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@graph": [
+                {
+                  "@type": "WebSite",
+                  "name": "Gaurav's Personal Drive",
+                  "url": typeof window !== 'undefined' ? window.location.origin : 'https://gauravs-personal-drive.vercel.app',
+                  "potentialAction": {
+                    "@type": "SearchAction",
+                    "target": (typeof window !== 'undefined' ? window.location.origin : 'https://gauravs-personal-drive.vercel.app') + "/search?q={search_term_string}",
+                    "query-input": "required name=search_term_string"
+                  }
+                },
+                {
+                  "@type": "Organization",
+                  "name": "Gaurav's Personal Drive",
+                  "url": typeof window !== 'undefined' ? window.location.origin : 'https://gauravs-personal-drive.vercel.app',
+                  "logo": (typeof window !== 'undefined' ? window.location.origin : 'https://gauravs-personal-drive.vercel.app') + "/icon-512x512.png"
+                }
+              ]
+            })
+          }}
+        />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}

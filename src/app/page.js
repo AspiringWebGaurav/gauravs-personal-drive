@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ThemeToggle } from '@/components/ThemeToggle'
@@ -76,10 +77,10 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50/50 via-white to-purple-50/50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+    <div className="min-h-screen bg-gradient-to-br from-teal-50/50 via-white to-purple-50/50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       {/* Background pattern */}
       <div className="absolute inset-0 opacity-20">
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-100/50 to-purple-100/50 dark:from-blue-900/20 dark:to-purple-900/20"></div>
+        <div className="absolute inset-0 bg-gradient-to-br from-teal-100/50 to-purple-100/50 dark:from-teal-900/20 dark:to-purple-900/20"></div>
       </div>
       
       {/* Theme toggle - positioned in top right */}
@@ -105,8 +106,15 @@ export default function HomePage() {
         {/* Hero section */}
         <div className="text-center max-w-4xl mx-auto mb-16">
           <div className="flex items-center justify-center space-x-4 mb-8">
-            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-xl">
-              <HardDrive className="h-8 w-8 text-white" />
+            <div className="w-16 h-16 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-2xl flex items-center justify-center shadow-xl">
+              <Image
+                src="/icon-512x512.png"
+                alt="Gaurav's Personal Drive logo"
+                width={32}
+                height={32}
+                className="w-8 h-8"
+                priority
+              />
             </div>
             <div>
               <h1 className="text-4xl md:text-6xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
@@ -125,7 +133,7 @@ export default function HomePage() {
             <Button
               onClick={() => router.push('/login')}
               size="lg"
-              className="h-14 px-8 glass-button bg-blue-500/10 dark:bg-blue-400/10 hover:bg-blue-500/20 dark:hover:bg-blue-400/20 border border-blue-300/30 dark:border-blue-600/30 text-blue-700 dark:text-blue-300 text-lg font-medium"
+              className="h-14 px-8 glass-button bg-teal-500/10 dark:bg-teal-400/10 hover:bg-teal-500/20 dark:hover:bg-teal-400/20 border border-teal-300/30 dark:border-teal-600/30 text-teal-700 dark:text-teal-300 text-lg font-medium"
               variant="outline"
             >
               Get Started
@@ -146,9 +154,9 @@ export default function HomePage() {
 
         {/* Features section */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-          <Card className="glass-card border-blue-200/20 dark:border-blue-800/20 shadow-xl backdrop-blur-xl hover:scale-[1.02] transition-all duration-300">
+          <Card className="glass-card border-teal-200/20 dark:border-teal-800/20 shadow-xl backdrop-blur-xl hover:scale-[1.02] transition-all duration-300">
             <CardHeader className="text-center">
-              <div className="w-12 h-12 mx-auto bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg mb-4">
+              <div className="w-12 h-12 mx-auto bg-gradient-to-br from-teal-500 to-teal-600 rounded-xl flex items-center justify-center shadow-lg mb-4">
                 <Shield className="h-6 w-6 text-white" />
               </div>
               <CardTitle className="text-xl font-bold text-gray-900 dark:text-white">
@@ -204,9 +212,9 @@ export default function HomePage() {
       </div>
 
       {/* Floating elements for visual appeal */}
-      <div className="absolute top-1/4 left-4 w-24 h-24 bg-gradient-to-br from-blue-400/20 to-purple-400/20 rounded-full blur-xl"></div>
-      <div className="absolute bottom-1/4 right-8 w-32 h-32 bg-gradient-to-br from-purple-400/20 to-blue-400/20 rounded-full blur-xl"></div>
-      <div className="absolute top-3/4 left-1/3 w-16 h-16 bg-gradient-to-br from-green-400/20 to-blue-400/20 rounded-full blur-xl"></div>
+      <div className="absolute top-1/4 left-4 w-24 h-24 bg-gradient-to-br from-teal-400/20 to-purple-400/20 rounded-full blur-xl"></div>
+      <div className="absolute bottom-1/4 right-8 w-32 h-32 bg-gradient-to-br from-purple-400/20 to-teal-400/20 rounded-full blur-xl"></div>
+      <div className="absolute top-3/4 left-1/3 w-16 h-16 bg-gradient-to-br from-green-400/20 to-teal-400/20 rounded-full blur-xl"></div>
     </div>
   )
 }

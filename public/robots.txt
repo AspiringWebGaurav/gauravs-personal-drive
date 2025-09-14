@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://gauravs-personal-drive.vercel.app/sitemap.xml

@@ -1,22 +1,22 @@
 {
   "name": "Gaurav's Personal Drive",
-  "short_name": "Personal Drive",
-  "description": "Your secure cloud storage solution. Fast, minimal, and built for personal use with advanced authentication and recovery features.",
+  "short_name": "GPD",
+  "description": "Secure personal drive and file manager by Gaurav — fast uploads, private links, and anywhere access.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#3b82f6",
+  "theme_color": "#0fb9b1",
   "orientation": "portrait-primary",
   "categories": ["productivity", "utilities"],
   "icons": [
     {
-      "src": "/icon-192.png",
+      "src": "/icon-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/icon-512.png",
+      "src": "/icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
