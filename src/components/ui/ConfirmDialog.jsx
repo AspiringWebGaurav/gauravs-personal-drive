@@ -27,17 +27,7 @@ export function ConfirmDialog({
   className,
   ...props
 }) {
-  const [isVisible, setIsVisible] = useState(false)
 
-  // Handle smooth entrance animation
-  useEffect(() => {
-    if (open) {
-      setIsVisible(true)
-    } else {
-      const timer = setTimeout(() => setIsVisible(false), 200)
-      return () => clearTimeout(timer)
-    }
-  }, [open])
 
   const getIcon = () => {
     switch (type) {
@@ -98,90 +88,58 @@ export function ConfirmDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange} {...props}>
-      <DialogContent 
+      <DialogContent
         className={cn(
-          // Glass morphism styling
-          "glass-card border-destructive/20 max-w-md",
-          // Enhanced backdrop blur and transparency
-          "backdrop-blur-xl bg-white/10 dark:bg-black/20",
+          // Clean, solid, elevated look
+          "bg-background border shadow-2xl max-w-md z-[60]",
           // Smooth animations
-          "data-[state=open]:animate-fade-in",
-          "transition-all duration-300 ease-out",
+          "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
+          "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
           // Focus styles
-          "focus:outline-none focus:ring-2 focus:ring-destructive/20",
+          "focus:outline-none",
           className
         )}
         showCloseButton={false}
         onKeyDown={handleKeyDown}
       >
         <DialogHeader className="text-center sm:text-left">
-          {/* Icon with animated entrance */}
-          <div className={cn(
-            "flex justify-center sm:justify-start mb-4",
-            "animate-fade-in delay-100"
-          )}>
-            <div className="flex items-center justify-center w-12 h-12 rounded-full bg-destructive/10 border border-destructive/20">
+          <div className="flex justify-center sm:justify-start mb-4">
+            <div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 border border-red-200 dark:border-red-900/50">
               {getIcon()}
             </div>
           </div>
 
-          <DialogTitle className={cn(
-            "text-lg font-semibold text-foreground",
-            "animate-fade-in delay-150"
-          )}>
+          <DialogTitle className="text-lg font-semibold text-foreground">
             {title || getDefaultTitle()}
           </DialogTitle>
 
-          <DialogDescription className={cn(
-            "text-sm text-muted-foreground mt-2 leading-relaxed",
-            "animate-fade-in delay-200"
-          )}>
+          <DialogDescription className="text-sm text-muted-foreground mt-2 leading-relaxed">
             {description || getDefaultDescription()}
           </DialogDescription>
 
           {/* Item name highlight */}
           {itemName && (
-            <div className={cn(
-              "mt-3 p-2 rounded-lg bg-muted/20 border border-muted/30",
-              "text-sm font-medium text-foreground",
-              "animate-fade-in delay-250"
-            )}>
+            <div className="mt-3 p-2.5 rounded-md bg-muted/50 border border-border text-sm font-medium text-foreground text-center sm:text-left break-all">
               {itemName}
             </div>
           )}
         </DialogHeader>
 
-        <DialogFooter className={cn(
-          "flex flex-col-reverse sm:flex-row gap-2 mt-6",
-          "animate-fade-in delay-300"
-        )}>
+        <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2 mt-6">
           <Button
             variant="outline"
             onClick={handleCancel}
             disabled={isLoading}
-            className={cn(
-              "transition-all duration-200",
-              "hover:bg-muted/50 hover:border-muted/60",
-              "focus:ring-2 focus:ring-ring focus:ring-offset-2"
-            )}
+            className="w-full sm:w-auto mt-2 sm:mt-0"
           >
             {cancelText}
           </Button>
-          
+
           <Button
             variant="destructive"
             onClick={handleConfirm}
             disabled={isLoading}
-            className={cn(
-              "transition-all duration-200",
-              "bg-destructive hover:bg-destructive/90",
-              "shadow-lg hover:shadow-xl",
-              "focus:ring-2 focus:ring-destructive/20 focus:ring-offset-2",
-              // Glass effect on destructive button
-              "backdrop-blur-sm",
-              // Loading state styling
-              isLoading && "opacity-80 cursor-not-allowed"
-            )}
+            className="w-full sm:w-auto bg-red-600 hover:bg-red-700 shadow-sm"
           >
             {isLoading ? (
               <>

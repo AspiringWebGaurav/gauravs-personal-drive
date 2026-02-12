@@ -3,11 +3,10 @@
 import { useState, useEffect } from 'react'
 import { Loader2, RotateCcw, HardDrive, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { toast } from 'sonner'
 import { useNotification } from '@/components/providers/NotificationProvider'
 
-export function AuthLoadingSpinner({ 
-  step = '', 
+export function AuthLoadingSpinner({
+  step = '',
   showSteps = true,
   onTimeout = null,
   onHardRefresh = null,
@@ -18,7 +17,7 @@ export function AuthLoadingSpinner({
   const [showRecovery, setShowRecovery] = useState(false)
   const [isTimedOut, setIsTimedOut] = useState(false)
   const [isPerformingHardRefresh, setIsPerformingHardRefresh] = useState(false)
-  const { showSuccess } = useNotification()
+  const { showSuccess, showInfo, showError, showLoading, updateNotification } = useNotification()
 
   const steps = [
     'Opening Google Sign-in...',
@@ -27,8 +26,8 @@ export function AuthLoadingSpinner({
     'Finalizing sign-in...',
     'Redirecting to dashboard...'
   ]
-  
-  const currentStepIndex = Math.max(0, steps.findIndex(s => 
+
+  const currentStepIndex = Math.max(0, steps.findIndex(s =>
     step && s.toLowerCase().includes(step.toLowerCase().split(' ')[0])
   ))
 
@@ -37,39 +36,33 @@ export function AuthLoadingSpinner({
     const interval = setInterval(() => {
       setElapsedTime(prev => {
         const newTime = prev + 100
-        
+
         // Show recovery options after specified time
         if (newTime >= showRecoveryAfter && !showRecovery) {
           setShowRecovery(true)
-          toast.info('Taking longer than expected? Try refreshing.', {
-            duration: 5000,
-            id: 'slow-auth'
-          })
+          showInfo('Taking longer than expected? Try refreshing.')
         }
-        
+
         // Trigger timeout
         if (newTime >= timeoutMs && !isTimedOut) {
           setIsTimedOut(true)
           if (onTimeout) {
             onTimeout()
           } else {
-            toast.error('Sign-in timed out. Please try again.', {
-              duration: 8000,
-              id: 'auth-timeout'
-            })
+            showError('Sign-in timed out. Please try again.')
           }
         }
-        
+
         return newTime
       })
     }, 100)
 
     return () => clearInterval(interval)
-  }, [showRecoveryAfter, timeoutMs, showRecovery, isTimedOut, onTimeout])
+  }, [showRecoveryAfter, timeoutMs, showRecovery, isTimedOut, onTimeout, showInfo, showError])
 
   const performHardRefresh = async () => {
     setIsPerformingHardRefresh(true)
-    toast.loading('Performing hard refresh...', { id: 'hard-refresh' })
+    const toastId = showLoading('Performing hard refresh...')
 
     try {
       // Clear all browser storage
@@ -108,13 +101,12 @@ export function AuthLoadingSpinner({
       }
 
       // Show both toast for immediate feedback and dialog for completion
-      toast.success('Hard refresh completed!', { id: 'hard-refresh' })
+      updateNotification(toastId, { render: 'Hard refresh completed!', type: 'success', isLoading: false, autoClose: 2000 })
       showSuccess(
         'System Refreshed',
-        'Hard refresh completed successfully. Your session has been reset.',
-        { autoCloseDuration: 3000 }
+        'Hard refresh completed successfully. Your session has been reset.'
       )
-      
+
       setTimeout(() => {
         if (onHardRefresh) {
           onHardRefresh()
@@ -124,7 +116,7 @@ export function AuthLoadingSpinner({
       }, 500)
     } catch (error) {
       console.error('Hard refresh failed:', error)
-      toast.error('Hard refresh failed. Reloading page...', { id: 'hard-refresh' })
+      updateNotification(toastId, { render: 'Hard refresh failed. Reloading page...', type: 'error', isLoading: false, autoClose: 2000 })
       setTimeout(() => window.location.reload(), 1000)
     }
   }
@@ -150,7 +142,7 @@ export function AuthLoadingSpinner({
             </div>
             <div>
               <h2 className="text-lg font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
-                Gaurav's Personal Drive
+                Gaurav&apos;s Personal Drive
               </h2>
             </div>
           </div>
@@ -160,7 +152,7 @@ export function AuthLoadingSpinner({
             <div className="w-16 h-16 relative">
               <Loader2 className="w-16 h-16 animate-spin text-blue-600 dark:text-blue-400" />
               <div className="absolute inset-0 rounded-full border-2 border-blue-200 dark:border-blue-800 animate-pulse"></div>
-              
+
               {/* Timeout indicator */}
               {isTimedOut && (
                 <div className="absolute inset-0 flex items-center justify-center">
@@ -169,13 +161,13 @@ export function AuthLoadingSpinner({
               )}
             </div>
           </div>
-          
+
           {/* Status and Progress */}
           <div className="text-center w-full space-y-4">
             <h3 className="text-lg font-medium text-gray-900 dark:text-white">
               {isTimedOut ? 'Sign-in Taking Too Long' : 'Signing you in...'}
             </h3>
-            
+
             {showSteps && step && !isTimedOut && (
               <p className="text-sm text-gray-600 dark:text-gray-300 animate-pulse">
                 {step}
@@ -189,12 +181,11 @@ export function AuthLoadingSpinner({
                 <span>{formatTime(elapsedTime)}</span>
               </div>
               <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
-                <div 
-                  className={`h-2 rounded-full transition-all duration-300 ${
-                    isTimedOut 
-                      ? 'bg-gradient-to-r from-red-500 to-orange-500' 
-                      : 'bg-gradient-to-r from-blue-500 to-purple-600'
-                  }`}
+                <div
+                  className={`h-2 rounded-full transition-all duration-300 ${isTimedOut
+                    ? 'bg-gradient-to-r from-red-500 to-orange-500'
+                    : 'bg-gradient-to-r from-blue-500 to-purple-600'
+                    }`}
                   style={{ width: `${getProgressPercentage()}%` }}
                 />
               </div>
@@ -204,22 +195,20 @@ export function AuthLoadingSpinner({
             {showSteps && !isTimedOut && (
               <div className="space-y-3">
                 {steps.map((stepText, index) => (
-                  <div 
+                  <div
                     key={index}
-                    className={`flex items-center text-xs transition-all duration-300 ${
-                      index <= currentStepIndex 
-                        ? 'text-blue-600 dark:text-blue-400' 
-                        : 'text-gray-400 dark:text-gray-600'
-                    }`}
-                  >
-                    <div 
-                      className={`w-2 h-2 rounded-full mr-3 transition-all duration-300 ${
-                        index < currentStepIndex 
-                          ? 'bg-green-500 scale-110' 
-                          : index === currentStepIndex 
-                          ? 'bg-blue-600 dark:bg-blue-400 animate-pulse scale-110' 
-                          : 'bg-gray-300 dark:bg-gray-600'
+                    className={`flex items-center text-xs transition-all duration-300 ${index <= currentStepIndex
+                      ? 'text-blue-600 dark:text-blue-400'
+                      : 'text-gray-400 dark:text-gray-600'
                       }`}
+                  >
+                    <div
+                      className={`w-2 h-2 rounded-full mr-3 transition-all duration-300 ${index < currentStepIndex
+                        ? 'bg-green-500 scale-110'
+                        : index === currentStepIndex
+                          ? 'bg-blue-600 dark:bg-blue-400 animate-pulse scale-110'
+                          : 'bg-gray-300 dark:bg-gray-600'
+                        }`}
                     />
                     <span className={index === currentStepIndex ? 'font-medium' : ''}>
                       {stepText}
@@ -239,7 +228,7 @@ export function AuthLoadingSpinner({
                     </p>
                   </div>
                 )}
-                
+
                 <div className="space-y-2">
                   <Button
                     onClick={performHardRefresh}
@@ -255,7 +244,7 @@ export function AuthLoadingSpinner({
                     )}
                     Hard Refresh
                   </Button>
-                  
+
                   <Button
                     onClick={() => window.location.reload()}
                     size="sm"
@@ -268,10 +257,10 @@ export function AuthLoadingSpinner({
                 </div>
               </div>
             )}
-            
+
             {!isTimedOut && (
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                {showRecovery 
+                {showRecovery
                   ? "Having trouble? Try the recovery options above."
                   : "This may take a few seconds..."
                 }

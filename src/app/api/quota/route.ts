@@ -11,38 +11,40 @@ function nextMonthReset(now = new Date()) {
   const tz = process.env.QUOTA_TZ || 'UTC'
   const y = Number(formatInTimeZone(now, tz, 'yyyy'))
   const m = Number(formatInTimeZone(now, tz, 'M'))
-  
+
   // Calculate first day of next month in the specified timezone
   const nextMonth = m === 12 ? 1 : m + 1
   const nextYear = m === 12 ? y + 1 : y
-  
+
   // Create date in UTC for the first day of next month
   const firstNextMonth = new Date(Date.UTC(nextYear, nextMonth - 1, 1, 0, 0, 0))
   return firstNextMonth.toISOString()
 }
 
 // In-memory cache for quota calculations (60 second TTL)
+// In-memory cache for quota calculations
 const quotaCache = new Map<string, { data: any; expiry: number }>()
-const CACHE_TTL = 60 * 1000 // 60 seconds
+const CACHE_TTL_STANDARD = 60 * 1000 // 60 seconds for standard requests
+const CACHE_TTL_REALTIME = 2 * 1000 // 2 seconds for realtime (prevents instant re-fetch but allows updates)
 
 async function calculateRealTimeUsage(userId?: string | null) {
   const db = getDb()
-  
+
   try {
     let filesQuery: any = db.collection('files')
-    
+
     // If userId provided, filter by user (for per-user quotas in future)
     if (userId) {
       filesQuery = filesQuery.where('userId', '==', userId)
     }
-    
+
     // Get all files to calculate current physical storage
     const filesSnapshot = await filesQuery.get()
     let usedPhysicalBytes = 0
     let validFiles = 0
     let invalidFiles = 0
     const fileDetails: any[] = []
-    
+
     filesSnapshot.docs.forEach((doc: any) => {
       const data = doc.data()
       const fileInfo = {
@@ -52,7 +54,7 @@ async function calculateRealTimeUsage(userId?: string | null) {
         sizeType: typeof data.size,
         isValid: false
       }
-      
+
       if (data.size && typeof data.size === 'number' && data.size > 0) {
         usedPhysicalBytes += data.size
         validFiles++
@@ -66,10 +68,10 @@ async function calculateRealTimeUsage(userId?: string | null) {
           sizeType: typeof data.size
         })
       }
-      
+
       fileDetails.push(fileInfo)
     })
-    
+
     console.log('🔥 Real-time calculation detailed:', {
       totalFiles: filesSnapshot.docs.length,
       validFiles,
@@ -78,7 +80,7 @@ async function calculateRealTimeUsage(userId?: string | null) {
       usedPhysicalMB: Math.round(usedPhysicalBytes / (1024 * 1024)),
       calculationTimestamp: new Date().toISOString()
     })
-    
+
     // Enhanced validation: throw error if no valid data found but files exist
     if (filesSnapshot.docs.length > 0 && usedPhysicalBytes === 0) {
       console.error('🚨 Data integrity issue detected:', {
@@ -89,7 +91,7 @@ async function calculateRealTimeUsage(userId?: string | null) {
       })
       throw new Error(`Found ${filesSnapshot.docs.length} files but calculated 0 bytes - data integrity issue detected`)
     }
-    
+
     return {
       usedPhysicalBytes,
       validFiles,
@@ -111,7 +113,7 @@ async function getUsageFromSnapshot(monthKey: string) {
   try {
     const db = getDb()
     const snap = await db.collection('usage_snapshots').doc(monthKey).get()
-    
+
     return snap.exists ? (snap.data() as any) : {
       usedPhysicalBytes: 0,
       deletedBytesAccrued: 0
@@ -131,7 +133,7 @@ export async function GET(req: NextRequest) {
     const projectId = searchParams.get('projectId') || 'default'
     const userId = searchParams.get('userId') // Optional user filter
     const useRealTime = searchParams.get('realtime') !== 'false' // Default to real-time
-    
+
     // Check cache first
     const cacheKey = `${projectId}-${userId || 'global'}-${useRealTime}`
     const cached = quotaCache.get(cacheKey)
@@ -159,11 +161,11 @@ export async function GET(req: NextRequest) {
           totalFiles: realTimeData.totalFiles,
           fileDetails: realTimeData.fileDetails
         }
-        
+
         // Get deleted bytes from snapshot for billing accuracy
         const snapshotData = await getUsageFromSnapshot(key)
         deletedBytesAccrued = snapshotData.deletedBytesAccrued || 0
-        
+
         console.log('✅ Using real-time calculation successfully:', {
           usedPhysicalBytes,
           validFiles: realTimeData.validFiles,
@@ -175,13 +177,13 @@ export async function GET(req: NextRequest) {
           userId,
           projectId
         })
-        
+
         // Fallback: Use snapshot data
         const snapshotData = await getUsageFromSnapshot(key)
         usedPhysicalBytes = snapshotData.usedPhysicalBytes || 0
         deletedBytesAccrued = snapshotData.deletedBytesAccrued || 0
         calculationMethod = 'snapshot-fallback'
-        
+
         // Include error details in development mode
         realTimeDetails = process.env.NODE_ENV === 'development' ? {
           fallbackReason: realTimeError instanceof Error ? realTimeError.message : String(realTimeError),
@@ -199,7 +201,7 @@ export async function GET(req: NextRequest) {
     // Billable = physical storage currently allocated + deleted that "stick" until reset
     const usedBytes = usedPhysicalBytes + deletedBytesAccrued
     const limitBytes = Number(process.env.FREE_STORAGE_LIMIT_BYTES || 5 * 1024 * 1024 * 1024)
-    
+
     // Calculate percentage for debugging
     const usagePercentage = limitBytes > 0 ? Math.round((usedBytes / limitBytes) * 100) : 0
 
@@ -224,7 +226,7 @@ export async function GET(req: NextRequest) {
       // Include detailed debug info in development
       ...(process.env.NODE_ENV === 'development' && realTimeDetails ? { debug: realTimeDetails } : {})
     }
-    
+
     // Enhanced logging for debugging
     console.log('📊 Quota calculation complete:', {
       projectId,
@@ -236,9 +238,10 @@ export async function GET(req: NextRequest) {
     })
 
     // Cache the response
+    const currentTTL = useRealTime ? CACHE_TTL_REALTIME : CACHE_TTL_STANDARD
     quotaCache.set(cacheKey, {
       data: responseData,
-      expiry: Date.now() + CACHE_TTL
+      expiry: Date.now() + currentTTL
     })
 
     // Clean old cache entries periodically

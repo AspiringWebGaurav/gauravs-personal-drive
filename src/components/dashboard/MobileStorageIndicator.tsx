@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { HardDrive, AlertTriangle } from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
 import { MobileStorageModal } from "./MobileStorageModal";
+import { useBurnControl } from "@/components/providers/BurnControlProvider";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -37,17 +38,18 @@ export function MobileStorageIndicator({
   pollMs = 5000,
 }: MobileStorageIndicatorProps) {
   const [isUploading, setIsUploading] = useState(false);
-  const [lastUploadTime, setLastUploadTime] = useState<number>(0);
-  const [lastRefreshTime, setLastRefreshTime] = useState<number>(Date.now());
+  const [isRecentUpload, setIsRecentUpload] = useState(false);
+  const [lastRefreshTime, setLastRefreshTime] = useState<number>(() => Date.now());
   const [modalOpen, setModalOpen] = useState(false);
+  const { syncStatus } = useBurnControl()
 
   // Adaptive polling - less frequent for mobile indicator
   const activePollMs = useMemo(() => {
-    const dt = Date.now() - lastUploadTime;
+    if (syncStatus === 'suspended' || syncStatus === 'passive') return 0; // Paused
     if (isUploading) return 2000;
-    if (dt < 30000) return 3000;
+    if (isRecentUpload) return 3000;
     return pollMs;
-  }, [isUploading, lastUploadTime, pollMs]);
+  }, [isUploading, isRecentUpload, pollMs, syncStatus]);
 
   const { data, mutate, error } = useSWR<QuotaData>(
     `/api/quota?projectId=${projectId}&realtime=true&_t=${Math.floor(
@@ -66,18 +68,24 @@ export function MobileStorageIndicator({
 
   // Upload/file events
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+
     const onUploadStart = () => {
       setIsUploading(true);
-      setLastUploadTime(Date.now());
+      setIsRecentUpload(true);
     };
     const onUploadComplete = () => {
       setIsUploading(false);
-      setLastUploadTime(Date.now());
+      setIsRecentUpload(true);
       mutate();
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => setIsRecentUpload(false), 30000);
     };
     const onFileOp = () => {
-      setLastUploadTime(Date.now());
+      setIsRecentUpload(true);
       setTimeout(() => mutate(), 1000);
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => setIsRecentUpload(false), 30000);
     };
     const onStorage = (e: StorageEvent) => {
       if (e.key === "quota:update") mutate();
@@ -93,6 +101,7 @@ export function MobileStorageIndicator({
       window.removeEventListener("upload:complete", onUploadComplete);
       window.removeEventListener("file:operation", onFileOp);
       window.removeEventListener("storage", onStorage);
+      clearTimeout(timeoutId);
     };
   }, [mutate]);
 
@@ -104,8 +113,8 @@ export function MobileStorageIndicator({
     typeof data.usedBytes === "number" &&
     data.usedBytes >= 0 &&
     limitBytes > 0;
-    
-  const pct = data?.usagePercentage ?? 
+
+  const pct = data?.usagePercentage ??
     (isDataValid ? Math.min(100, Math.round((usedBytes / Math.max(1, limitBytes)) * 100)) : 0);
 
   const isNear = pct >= 90 && pct < 100;
@@ -136,20 +145,19 @@ export function MobileStorageIndicator({
           variant="ghost"
           size="sm"
           onClick={handleClick}
-          className={`h-8 px-2 ${getBackgroundColor()} hover:opacity-80 transition-all`}
+          className={`h-10 px-3 ${getBackgroundColor()} hover:opacity-80 transition-all`}
           title="Storage usage - tap for details"
         >
           <div className="flex items-center gap-1.5">
-            <HardDrive 
-              className={`h-3.5 w-3.5 ${
-                isUploading ? "animate-pulse" : ""
-              } ${getIndicatorColor()}`} 
+            <HardDrive
+              className={`h-3.5 w-3.5 ${isUploading ? "animate-pulse" : ""
+                } ${getIndicatorColor()}`}
             />
             <span className={`text-xs font-medium tabular-nums ${getIndicatorColor()}`}>
               {!isDataValid ? "—" : `${pct}%`}
             </span>
             {(isNear || isAt) && (
-              <AlertTriangle 
+              <AlertTriangle
                 className={`h-3 w-3 ${isAt ? "text-red-500" : "text-yellow-500"}`}
               />
             )}

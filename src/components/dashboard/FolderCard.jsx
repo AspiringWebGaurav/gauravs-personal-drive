@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState } from 'react'
+import { motion } from 'framer-motion'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
@@ -8,34 +9,53 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel
 } from '@/components/ui/dropdown-menu'
 import { RenameDialog } from './RenameDialog'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { useInteraction } from '@/hooks/useInteraction'
 import {
   MoreHorizontal,
   Edit3,
   Trash2,
   Folder,
   FolderOpen,
-  Loader2
+  Loader2,
+  Share2,
+  Info
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
-import { doc, deleteDoc, collection, query, where, getDocs } from 'firebase/firestore'
-import { firestore } from '@/lib/firebaseClient'
-import { toast } from 'sonner'
+import { firestoreService } from '@/services/firestoreService'
+import { storageService } from '@/services/storageService'
 import { useNotification } from '@/components/providers/NotificationProvider'
 
-export function FolderCard({ folder, onOpen }) {
+/**
+ * @typedef {Object} FolderData
+ * @property {string} id
+ * @property {string} name
+ * @property {any} [createdAt]
+ */
+
+/**
+ * @param {{ folder: FolderData, onOpen: (folder: FolderData) => void }} props
+ */
+export const FolderCard = React.memo(function FolderCard({ folder, onOpen }) {
   const [isHovered, setIsHovered] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [showRenameDialog, setShowRenameDialog] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [deleteDialogType, setDeleteDialogType] = useState('deleteFolder')
-  const { showSuccess } = useNotification()
+  const { showSuccess, showError } = useNotification()
 
-  const handleRename = () => {
-    setShowRenameDialog(true)
-  }
+  // Unified interaction: double-click (desktop) / double-tap (mobile) to open
+  const { handlers } = useInteraction({
+    onOpen: () => onOpen(folder),
+    onTap: () => { }, // Handled by framer-motion tap
+    disabled: isLoading,
+  })
+
+  const handleRename = () => setShowRenameDialog(true)
 
   const handleDelete = () => {
     setDeleteDialogType('deleteFolder')
@@ -46,73 +66,51 @@ export function FolderCard({ folder, onOpen }) {
     setIsLoading(true)
 
     try {
-      // Check if folder has contents
-      const filesQuery = query(
-        collection(firestore, 'files'),
-        where('folderId', '==', folder.id)
-      )
-      const foldersQuery = query(
-        collection(firestore, 'folders'),
-        where('parentId', '==', folder.id)
-      )
-
       const [filesSnapshot, foldersSnapshot] = await Promise.all([
-        getDocs(filesQuery),
-        getDocs(foldersQuery)
+        firestoreService.getFiles(folder.id),
+        firestoreService.getFolders(folder.id)
       ])
 
       if (!filesSnapshot.empty || !foldersSnapshot.empty) {
-        // Close current dialog and show the "folder contains items" dialog
         setShowDeleteDialog(false)
         setDeleteDialogType('deleteFolderWithContents')
         setIsLoading(false)
-        
-        // Small delay to allow dialog transition
+
         setTimeout(() => {
           setShowDeleteDialog(true)
         }, 100)
         return
       }
 
-      // Proceed with deletion if folder is empty
       await performDeleteFolder(filesSnapshot, foldersSnapshot)
     } catch (error) {
       console.error('Error deleting folder:', error)
-      toast.error('Failed to delete folder. Please try again.')
-      setIsLoading(false)
+      showError('Failed to delete folder. Please try again.')
+      try {
+        await performDeleteFolder()
+      } catch (error) {
+        console.error('Error deleting folder:', error)
+        showError('Failed to delete folder. Please try again.')
+        setIsLoading(false)
+      }
     }
   }
 
-  const performDeleteFolder = async (filesSnapshot = null, foldersSnapshot = null) => {
+  const performDeleteFolder = async () => {
     try {
-      // Delete all files in the folder if they exist
-      if (filesSnapshot && !filesSnapshot.empty) {
-        for (const fileDoc of filesSnapshot.docs) {
-          await deleteDoc(fileDoc.ref)
-        }
-      }
+      // Soft Delete the folder ONLY.
+      // Contents remain "in" the folder (linked by parentId) but are hidden since the parent is in trash.
+      // This allows full restoration.
 
-      // Delete all subfolders if they exist
-      if (foldersSnapshot && !foldersSnapshot.empty) {
-        for (const folderDoc of foldersSnapshot.docs) {
-          await deleteDoc(folderDoc.ref)
-        }
-      }
-
-      // Delete the folder itself
-      await deleteDoc(doc(firestore, 'folders', folder.id))
-
-      // Close dialog and show success
+      await firestoreService.softDeleteFolder(folder.id)
       setShowDeleteDialog(false)
-      toast.success('Folder deleted successfully!')
       showSuccess(
-        'Folder Deleted',
-        `"${folder.name}" has been deleted successfully`,
-        { autoCloseDuration: 2500 }
+        'Folder Trashed',
+        `"${folder.name}" moved to recycle bin`
       )
     } catch (error) {
       console.error('Error deleting folder:', error)
-      toast.error('Failed to delete folder. Please try again.')
+      showError('Failed to delete folder.')
     } finally {
       setIsLoading(false)
     }
@@ -120,87 +118,74 @@ export function FolderCard({ folder, onOpen }) {
 
   const handleConfirmDeleteWithContents = async () => {
     setIsLoading(true)
-
     try {
-      // Re-fetch contents to ensure we have the latest data
-      const filesQuery = query(
-        collection(firestore, 'files'),
-        where('folderId', '==', folder.id)
-      )
-      const foldersQuery = query(
-        collection(firestore, 'folders'),
-        where('parentId', '==', folder.id)
-      )
-
       const [filesSnapshot, foldersSnapshot] = await Promise.all([
-        getDocs(filesQuery),
-        getDocs(foldersQuery)
+        firestoreService.getFiles(folder.id),
+        firestoreService.getFolders(folder.id)
       ])
 
       await performDeleteFolder(filesSnapshot, foldersSnapshot)
     } catch (error) {
       console.error('Error deleting folder with contents:', error)
-      toast.error('Failed to delete folder. Please try again.')
+      showError('Failed to delete folder. Please try again.')
       setIsLoading(false)
     }
   }
 
-  const handleDoubleClick = () => {
-    onOpen(folder)
-  }
-
-  const handleTouch = () => {
-    // On mobile, single tap to open folder
-    if ('ontouchstart' in window) {
-      onOpen(folder)
-    }
-  }
-
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault()
-      onOpen(folder)
-    }
-  }
-
   return (
-    <Card
-      className="file-card group cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all duration-200"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      onDoubleClick={handleDoubleClick}
-      onTouchEnd={handleTouch}
-      onClick={handleTouch}
-      onKeyDown={handleKeyDown}
-      tabIndex={0}
-      role="button"
-      aria-label={`Open folder ${folder.name}`}
+    <motion.div
+      layout
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.9 }}
+      whileHover={{ y: -4, transition: { duration: 0.2 } }}
+      whileTap={{ scale: 0.96 }}
+      transition={{ type: 'spring', stiffness: 350, damping: 25 }}
+      className="h-full"
     >
-      <CardContent className="p-4">
-        {/* Folder icon */}
-        <div className="flex items-center justify-center w-full h-32 bg-muted/20 rounded-lg mb-3">
-          <div className="text-blue-500 dark:text-blue-400">
-            {isHovered ? (
-              <FolderOpen className="w-16 h-16" />
-            ) : (
-              <Folder className="w-16 h-16" />
-            )}
-          </div>
-        </div>
-        
-        {/* Folder info */}
-        <div className="space-y-2">
-          <div className="flex items-start justify-between gap-2">
-            <h3 className="font-medium text-sm truncate flex-1" title={folder.name}>
-              {folder.name}
-            </h3>
-            
+      <Card
+        className={`
+          group relative h-full border-0 bg-white/50 dark:bg-black/20 
+          backdrop-blur-xl shadow-sm hover:shadow-xl dark:shadow-black/40
+          transition-all duration-300 overflow-hidden ring-1 ring-black/5 dark:ring-white/10
+          cursor-pointer select-none
+        `}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        onClick={handlers.onClick}
+        onTouchEnd={handlers.onTouchEnd}
+        onKeyDown={handlers.onKeyDown}
+        tabIndex={0}
+        role="button"
+        aria-label={`Open folder ${folder.name}`}
+      >
+        {/* Decorative gradient blob */}
+        <div className="absolute -top-10 -right-10 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl group-hover:bg-blue-500/20 transition-all duration-500" />
+
+        <CardContent className="p-5 flex flex-col h-full relative z-10">
+          {/* Top Row: Icon + Menu */}
+          <div className="flex items-start justify-between mb-4">
+            <motion.div
+              className="p-3 bg-blue-50 dark:bg-blue-500/10 rounded-2xl text-blue-600 dark:text-blue-400"
+              animate={{
+                rotate: isHovered ? [0, -5, 5, 0] : 0,
+                scale: isHovered ? 1.1 : 1
+              }}
+              transition={{ duration: 0.4 }}
+            >
+              {isHovered ? (
+                <FolderOpen className="w-8 h-8 fill-current" />
+              ) : (
+                <Folder className="w-8 h-8 fill-current" />
+              )}
+            </motion.div>
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
-                  size="sm"
-                  className="opacity-0 group-hover:opacity-100 h-8 w-8 p-0 transition-opacity"
+                  size="icon"
+                  className="h-8 w-8 -mr-2 text-muted-foreground/50 hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
                   onClick={(e) => e.stopPropagation()}
                   disabled={isLoading}
                 >
@@ -211,55 +196,66 @@ export function FolderCard({ folder, onOpen }) {
                   )}
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="glass-card">
-                <DropdownMenuItem onClick={handleRename} className="cursor-pointer">
-                  <Edit3 className="mr-2 h-4 w-4" />
-                  Rename
+              <DropdownMenuContent align="end" className="w-48 glass-card">
+                <DropdownMenuLabel className="text-xs font-normal text-muted-foreground ml-2">Actions</DropdownMenuLabel>
+                <DropdownMenuItem onClick={handleRename} className="cursor-pointer gap-2">
+                  <Edit3 className="h-4 w-4" /> Rename
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { }} className="cursor-pointer gap-2">
+                  <Share2 className="h-4 w-4" /> Share
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => { }} className="cursor-pointer gap-2">
+                  <Info className="h-4 w-4" /> Details
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={handleDelete}
-                  className="cursor-pointer text-red-600 dark:text-red-400"
+                  className="cursor-pointer text-red-600 dark:text-red-400 gap-2 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950/20"
                   disabled={isLoading}
                 >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete
+                  <Trash2 className="h-4 w-4" /> Delete
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          
-          <div className="text-xs text-muted-foreground space-y-1">
-            <p>Folder</p>
-            <p>
-              {folder.createdAt && formatDistanceToNow(folder.createdAt.toDate(), { addSuffix: true })}
-            </p>
-          </div>
-        </div>
-      </CardContent>
-      
-      <RenameDialog
-        open={showRenameDialog}
-        onOpenChange={setShowRenameDialog}
-        item={folder}
-        type="folder"
-        onSuccess={() => {
-          // RenameDialog handles its own notifications now
-        }}
-      />
 
-      <ConfirmDialog
-        open={showDeleteDialog}
-        onOpenChange={(open) => {
-          setShowDeleteDialog(open)
-          if (!open) {
-            setIsLoading(false)
-          }
-        }}
-        type={deleteDialogType}
-        itemName={folder.name}
-        onConfirm={deleteDialogType === 'deleteFolderWithContents' ? handleConfirmDeleteWithContents : handleConfirmDelete}
-        isLoading={isLoading}
-      />
-    </Card>
+          {/* Bottom Row: Name + Meta */}
+          <div className="mt-auto space-y-1">
+            <h3 className="font-semibold text-base text-foreground/90 truncate pr-4 leading-tight" title={folder.name}>
+              {folder.name}
+            </h3>
+            <div className="flex items-center text-xs text-muted-foreground font-medium">
+              <span>Folder</span>
+              <span className="mx-1.5 opacity-40">•</span>
+              <span>
+                {folder.createdAt && formatDistanceToNow(folder.createdAt.toDate(), { addSuffix: true })}
+              </span>
+            </div>
+          </div>
+        </CardContent>
+
+        <RenameDialog
+          open={showRenameDialog}
+          onOpenChange={setShowRenameDialog}
+          item={folder}
+          type="folder"
+          onSuccess={() => { }}
+        />
+
+        <ConfirmDialog
+          open={showDeleteDialog}
+          onOpenChange={(open) => {
+            setShowDeleteDialog(open)
+            if (!open) setIsLoading(false)
+          }}
+          type={deleteDialogType}
+          itemName={folder.name}
+          onConfirm={deleteDialogType === 'deleteFolderWithContents' ? handleConfirmDeleteWithContents : handleConfirmDelete}
+          isLoading={isLoading}
+        />
+      </Card>
+    </motion.div>
   )
-}
+})
+

@@ -2,8 +2,11 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { AuthProvider } from "@/components/providers/AuthProvider";
+import { BurnControlProvider } from "@/components/providers/BurnControlProvider";
 import { NotificationProvider } from "@/components/providers/NotificationProvider";
-import { Toaster } from "@/components/ui/sonner";
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -16,6 +19,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
+  metadataBase: new URL("https://gauravs-personal-drive.vercel.app"),
   title: {
     default: "Gaurav's Personal Drive",
     template: "%s | Gaurav's Personal Drive"
@@ -51,7 +55,6 @@ export const metadata = {
       },
     ],
   },
-  themeColor: "#0fb9b1",
   openGraph: {
     type: "website",
     siteName: "Gaurav's Personal Drive",
@@ -77,6 +80,9 @@ export const metadata = {
 export const viewport = {
   width: "device-width",
   initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#0fb9b1" },
     { media: "(prefers-color-scheme: dark)", color: "#0fb9b1" },
@@ -105,18 +111,18 @@ export default function RootLayout({ children }) {
                 {
                   "@type": "WebSite",
                   "name": "Gaurav's Personal Drive",
-                  "url": typeof window !== 'undefined' ? window.location.origin : 'https://gauravs-personal-drive.vercel.app',
+                  "url": 'https://gauravs-personal-drive.vercel.app',
                   "potentialAction": {
                     "@type": "SearchAction",
-                    "target": (typeof window !== 'undefined' ? window.location.origin : 'https://gauravs-personal-drive.vercel.app') + "/search?q={search_term_string}",
+                    "target": 'https://gauravs-personal-drive.vercel.app' + "/search?q={search_term_string}",
                     "query-input": "required name=search_term_string"
                   }
                 },
                 {
                   "@type": "Organization",
                   "name": "Gaurav's Personal Drive",
-                  "url": typeof window !== 'undefined' ? window.location.origin : 'https://gauravs-personal-drive.vercel.app',
-                  "logo": (typeof window !== 'undefined' ? window.location.origin : 'https://gauravs-personal-drive.vercel.app') + "/icon-512x512.png"
+                  "url": 'https://gauravs-personal-drive.vercel.app',
+                  "logo": 'https://gauravs-personal-drive.vercel.app' + "/icon-512x512.png"
                 }
               ]
             })
@@ -132,21 +138,29 @@ export default function RootLayout({ children }) {
           enableSystem
           disableTransitionOnChange
         >
-          <AuthProvider>
-            <NotificationProvider>
-              <div className="relative flex min-h-screen flex-col">
-                <main className="flex-1">
-                  {children}
-                </main>
-              </div>
-              <Toaster
-                position="top-right"
-                expand={false}
-                richColors
-                closeButton
-              />
-            </NotificationProvider>
-          </AuthProvider>
+          <NotificationProvider>
+            <AuthProvider>
+              <BurnControlProvider>
+                <div className="relative flex min-h-screen flex-col">
+                  <main className="flex-1">
+                    {children}
+                  </main>
+                </div>
+              </BurnControlProvider>
+            </AuthProvider>
+            <ToastContainer
+              position="top-right"
+              autoClose={2000}
+              hideProgressBar={false}
+              newestOnTop={false}
+              closeOnClick
+              rtl={false}
+              pauseOnFocusLoss
+              draggable
+              pauseOnHover={false}
+              theme="colored"
+            />
+          </NotificationProvider>
         </ThemeProvider>
       </body>
     </html>

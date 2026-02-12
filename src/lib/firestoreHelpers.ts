@@ -75,7 +75,7 @@ export function onSnapshotWithRetry<T = DocumentData>(
           setTimeout(() => reject(new Error('TOKEN_TIMEOUT')), 5000)
         )
         await Promise.race([tokenPromise, tokenTimeout])
-        
+
         // Check if too many consecutive errors
         if (consecutiveErrors >= 5) {
           logger.warn('Too many consecutive errors, forcing token refresh')
@@ -97,7 +97,7 @@ export function onSnapshotWithRetry<T = DocumentData>(
 
     try {
       logger.firebase(`Setting up Firestore listener (attempt ${retryCount + 1})`)
-      
+
       currentUnsubscribe = onSnapshot(
         query,
         (snapshot) => {
@@ -105,13 +105,13 @@ export function onSnapshotWithRetry<T = DocumentData>(
           retryCount = 0 // Reset retry count on success
           consecutiveErrors = 0 // Reset error count on success
           lastSuccessTime = Date.now()
-          
+
           // Defensive programming: validate snapshot
           if (!snapshot) {
             logger.warn('Received null/undefined snapshot')
             return
           }
-          
+
           try {
             onNext(snapshot)
           } catch (callbackError) {
@@ -120,19 +120,28 @@ export function onSnapshotWithRetry<T = DocumentData>(
           }
         },
         (error: FirestoreError) => {
+          // Check if error is due to sign out
+          if (error.code === 'permission-denied') {
+            const user = getCurrentUser()
+            if (!user) {
+              logger.log('Permission denied due to sign out - suppressing error')
+              return;
+            }
+          }
+
           logger.error('Firestore listener error:', error.code, error.message)
           consecutiveErrors++
-          
+
           // Check if we've been offline too long
           const timeSinceLastSuccess = Date.now() - lastSuccessTime
           if (timeSinceLastSuccess > 300000) { // 5 minutes
             logger.critical('No successful connection for 5 minutes, may need full app restart')
           }
-          
+
           // Handle different error types with enhanced logic
           if (error.code === 'permission-denied') {
             logger.log('Permission denied - checking retry options')
-            
+
             // If we've had recent success, likely a temporary auth issue
             if (timeSinceLastSuccess < 30000 && retryCount < maxRetries) {
               logger.log('Recent success detected, treating as temporary auth issue')
@@ -162,7 +171,7 @@ export function onSnapshotWithRetry<T = DocumentData>(
           } else {
             // For other errors, don't retry but check if it's really non-retryable
             logger.error('Potentially non-retryable error:', error.code)
-            
+
             // Some errors that look non-retryable might actually be transient
             if (['internal', 'unknown'].includes(error.code) && retryCount === 0) {
               logger.log('Attempting one retry for potential transient error')
@@ -185,19 +194,19 @@ export function onSnapshotWithRetry<T = DocumentData>(
 
   const scheduleRetry = () => {
     if (isDestroyed) return
-    
+
     retryCount++
     logger.log(`Scheduling Firestore retry ${retryCount}/${maxRetries} in ${retryDelay}ms`)
-    
+
     onRetry?.(retryCount)
-    
+
     // Calculate backoff with jitter to prevent thundering herd
     const backoffMs = Math.min(retryDelay * Math.pow(2, retryCount - 1), 30000) // Max 30s
     const jitter = Math.random() * 1000 // Add up to 1s of jitter
     const totalDelay = backoffMs + jitter
-    
+
     logger.log(`Retry scheduled in ${Math.round(totalDelay)}ms`)
-    
+
     retryTimeout = setTimeout(() => {
       if (!isDestroyed) {
         attemptSnapshot()
@@ -220,7 +229,7 @@ export function createUserQuery(collectionName: string, userId: string, addition
     collection(firestore, collectionName),
     ...additionalWhere || []
   )
-  
+
   return baseQuery
 }
 
@@ -229,7 +238,7 @@ export function createUserQuery(collectionName: string, userId: string, addition
  */
 export function handleFirestoreError(error: FirestoreError, operation: string): string {
   logger.error(`Firestore error in ${operation}:`, error.code, error.message)
-  
+
   switch (error.code) {
     case 'permission-denied':
       return 'Access denied. Please make sure you are properly signed in.'
@@ -257,7 +266,7 @@ export function handleFirestoreError(error: FirestoreError, operation: string): 
 export async function waitForAuth(timeoutMs: number = 10000): Promise<boolean> {
   return new Promise((resolve) => {
     const startTime = Date.now()
-    
+
     const checkAuth = () => {
       const user = getCurrentUser()
       if (user) {
@@ -265,17 +274,17 @@ export async function waitForAuth(timeoutMs: number = 10000): Promise<boolean> {
         resolve(true)
         return
       }
-      
+
       if (Date.now() - startTime > timeoutMs) {
         logger.warn('Authentication timeout for Firestore operations')
         resolve(false)
         return
       }
-      
+
       // Check again in 100ms
       setTimeout(checkAuth, 100)
     }
-    
+
     checkAuth()
   })
 }

@@ -38,12 +38,12 @@ export function Navbar() {
         <div className="flex h-16 items-center justify-between">
           {/* Logo and Brand */}
           <div className="flex items-center space-x-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-teal-500 to-cyan-600 shadow-lg">
-              <HardDrive className="h-5 w-5 text-white" />
+            <div className="flex items-center justify-center">
+              <HardDrive className="h-8 w-8 text-foreground/80" />
             </div>
             <div className="hidden sm:block">
               <h1 className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
-                Gaurav's Personal Drive
+                Gaurav&apos;s Personal Drive
               </h1>
             </div>
           </div>

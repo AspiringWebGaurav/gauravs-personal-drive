@@ -125,9 +125,8 @@ export function MobileStorageModal({
           <div className="sticky top-0 z-10 flex items-center justify-between p-4 bg-background border-b">
             <div className="flex items-center gap-3">
               <HardDrive
-                className={`h-5 w-5 ${
-                  isUploading ? "text-blue-500 animate-pulse" : getStatusColor()
-                }`}
+                className={`h-5 w-5 ${isUploading ? "text-blue-500 animate-pulse" : getStatusColor()
+                  }`}
               />
               <div>
                 <h2 className="text-lg font-semibold">Storage Usage</h2>
@@ -204,37 +203,34 @@ export function MobileStorageModal({
                 {/* Warning banner for high usage */}
                 {(isNear || isAt) && (
                   <div
-                    className={`mt-4 p-3 rounded-lg border ${
-                      isAt
+                    className={`mt-4 p-3 rounded-lg border ${isAt
                         ? "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800"
                         : "bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200 dark:border-yellow-800"
-                    }`}
+                      }`}
                   >
                     <div className="flex items-start gap-3">
                       <AlertTriangle
-                        className={`h-5 w-5 flex-shrink-0 mt-0.5 ${
-                          isAt
+                        className={`h-5 w-5 flex-shrink-0 mt-0.5 ${isAt
                             ? "text-red-600 dark:text-red-400"
                             : "text-yellow-600 dark:text-yellow-400"
-                        }`}
+                          }`}
                       />
                       <div className="flex-1">
                         <p
-                          className={`text-sm ${
-                            isAt
+                          className={`text-sm ${isAt
                               ? "text-red-800 dark:text-red-200"
                               : "text-yellow-800 dark:text-yellow-200"
-                          }`}
+                            }`}
                         >
                           {isAt ? (
                             <>
-                              You've reached your storage quota. Uploads are
+                              You&apos;ve reached your storage quota. Uploads are
                               blocked until reset (
                               {resetAt ? new Date(resetAt).toLocaleString() : "—"}).
                             </>
                           ) : (
                             <>
-                              You're approaching your storage quota. Consider freeing
+                              You&apos;re approaching your storage quota. Consider freeing
                               up space or upgrading.
                             </>
                           )}
@@ -354,7 +350,7 @@ export function MobileStorageModal({
               </div>
             </div>
             <p className="text-sm text-muted-foreground">
-              Deletions still count toward this month's billable usage. 
+              Deletions still count toward this month&apos;s billable usage.
               Quotas reset monthly on your billing date.
             </p>
           </div>

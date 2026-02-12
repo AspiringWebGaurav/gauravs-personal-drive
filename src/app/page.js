@@ -82,7 +82,7 @@ export default function HomePage() {
       <div className="absolute inset-0 opacity-20">
         <div className="absolute inset-0 bg-gradient-to-br from-teal-100/50 to-purple-100/50 dark:from-teal-900/20 dark:to-purple-900/20"></div>
       </div>
-      
+
       {/* Theme toggle - positioned in top right */}
       <div className="absolute top-4 right-4 z-10">
         <ThemeToggle />
@@ -106,29 +106,30 @@ export default function HomePage() {
         {/* Hero section */}
         <div className="text-center max-w-4xl mx-auto mb-16">
           <div className="flex items-center justify-center space-x-4 mb-8">
-            <div className="w-16 h-16 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-2xl flex items-center justify-center shadow-xl">
+            <div className="relative w-20 h-20 hover:scale-105 transition-transform duration-300">
+              <div className="absolute inset-0 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-2xl shadow-xl opacity-20 blur-sm"></div>
               <Image
                 src="/icon-512x512.png"
                 alt="Gaurav's Personal Drive logo"
-                width={32}
-                height={32}
-                className="w-8 h-8"
+                width={80}
+                height={80}
+                className="w-full h-full object-contain drop-shadow-lg rounded-2xl"
                 priority
               />
             </div>
             <div>
               <h1 className="text-4xl md:text-6xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
-                Gaurav's Personal Drive
+                Gaurav&apos;s Personal Drive
               </h1>
             </div>
           </div>
-          
+
           <p className="text-xl md:text-2xl text-gray-600 dark:text-gray-300 mb-8 leading-relaxed">
             Your secure cloud storage solution with advanced authentication and recovery features.
             <br />
             <span className="text-lg text-gray-500 dark:text-gray-400">Fast, minimal, and built for personal use.</span>
           </p>
-          
+
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button
               onClick={() => router.push('/login')}
@@ -139,7 +140,7 @@ export default function HomePage() {
               Get Started
               <ArrowRight className="w-5 h-5 ml-2" />
             </Button>
-            
+
             <Button
               onClick={() => router.push('/dashboard')}
               size="lg"
@@ -204,10 +205,19 @@ export default function HomePage() {
         </div>
 
         {/* Footer */}
-        <div className="text-center mt-16">
+        <div className="text-center mt-16 space-y-4">
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Built with ❤️ by Gaurav • Secure • Personal • Private
+            Built with ❤️ by <a href="https://www.gauravpatil.online" target="_blank" rel="noopener noreferrer" className="hover:text-teal-600 dark:hover:text-teal-400 transition-colors">Gaurav</a> • Secure • Personal • Private
           </p>
+          <div className="flex justify-center gap-6 text-sm text-gray-400 dark:text-gray-500">
+            <a href="https://www.gauravpatil.online" target="_blank" rel="noopener noreferrer" className="hover:text-teal-600 dark:hover:text-teal-400 transition-colors">
+              Portfolio
+            </a>
+            <span>•</span>
+            <a href="https://www.gauravworkspace.site" target="_blank" rel="noopener noreferrer" className="hover:text-purple-600 dark:hover:text-purple-400 transition-colors">
+              Workspace
+            </a>
+          </div>
         </div>
       </div>
 

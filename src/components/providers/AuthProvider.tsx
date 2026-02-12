@@ -4,8 +4,8 @@ import React, { createContext, useContext, useEffect, useState } from 'react'
 import { onAuthStateChange, getAuthToken, signOut } from '@/lib/auth'
 import type { User } from 'firebase/auth'
 import { useRouter } from 'next/navigation'
-import { AuthErrorBoundary } from '@/components/ui/AuthErrorBoundary'
-import { FirebaseErrorBoundary } from '@/components/ui/FirebaseErrorBoundary'
+
+
 import { logger } from '@/lib/logger'
 
 interface AuthContextType {
@@ -35,7 +35,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const router = useRouter()
 
   const clearError = () => setError(null)
-  
+
   const retryAuth = () => {
     setRetryCount(prev => prev + 1)
     setError(null)
@@ -50,7 +50,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         logger.warn('No authenticated user for token retrieval')
         return null
       }
-      
+
       const token = await currentUser.getIdToken(true) // Force refresh
       return token
     } catch (error) {
@@ -62,15 +62,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     const unsubscribe = onAuthStateChange(async (firebaseUser) => {
       logger.auth('Auth state change detected:', firebaseUser ? `User: ${firebaseUser.email}` : 'No user')
-      
+
       // Keep loading state true until all operations complete
       setLoading(true)
       setError(null)
       setIsTokenReady(false)
-      
+
       if (firebaseUser) {
         logger.auth('Setting up authentication for user:', firebaseUser.email)
-        
+
         try {
           // Step 1: Get and verify the authentication token
           logger.auth('Step 1: Getting authentication token...')
@@ -78,10 +78,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
           const tokenTimeout = new Promise<never>((_, reject) =>
             setTimeout(() => reject(new Error('TOKEN_TIMEOUT')), 8000)
           )
-          
+
           const token = await Promise.race([tokenPromise, tokenTimeout])
           logger.auth('Authentication token obtained successfully')
-          
+
           // Step 2: Set up session cookie with timeout
           logger.auth('Step 2: Setting up session cookie...')
           const controller = new AbortController()
@@ -89,16 +89,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
             logger.error('Session setup timeout')
             controller.abort()
           }, 10000)
-          
+
           const response = await fetch('/api/auth/session', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ token }),
             signal: controller.signal,
           })
-          
+
           clearTimeout(sessionTimeout)
-          
+
           if (response.ok) {
             logger.auth('Session cookie set successfully')
             // Step 3: Verify token is ready for Firestore
@@ -115,7 +115,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             // Handle session setup errors
             const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
             logger.error('Session setup failed:', errorData)
-            
+
             // Try token refresh for specific errors
             if (errorData.code === 'TOKEN_EXPIRED' || errorData.code === 'TOKEN_REVOKED') {
               logger.auth('Attempting token refresh...')
@@ -125,7 +125,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ token: newToken }),
               })
-              
+
               if (retryResponse.ok) {
                 logger.auth('Token refresh successful')
                 setUser(firebaseUser)
@@ -147,7 +147,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           }
         } catch (error: any) {
           logger.error('Authentication setup error:', error.message)
-          
+
           // Categorize errors
           if (error.message === 'TOKEN_TIMEOUT') {
             setError('TIMEOUT')
@@ -158,7 +158,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           } else {
             setError('AUTH_SETUP_ERROR')
           }
-          
+
           // Always set user for Firebase auth operations, even if session setup fails
           setUser(firebaseUser)
           setIsTokenReady(true) // Allow Firestore queries to proceed
@@ -174,7 +174,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setUser(null)
         setIsTokenReady(false)
       }
-      
+
       // Always set loading to false after operations complete
       setLoading(false)
       logger.auth('Authentication flow completed')
@@ -186,13 +186,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const handleSignOut = async () => {
     try {
       setLoading(true)
-      
+
       // Clear session cookie first
       await fetch('/api/auth/session', { method: 'DELETE' })
-      
+
       // Then sign out from Firebase
       await signOut()
-      
+
       router.push('/login')
     } catch (error) {
       logger.error('Error signing out:', error)
@@ -223,22 +223,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }
 
   return (
-    <FirebaseErrorBoundary
-      onError={(error, errorInfo) => {
-        logger.critical('Firebase Error in AuthProvider:', error, errorInfo)
-        // Clear auth state on critical errors
-        if (error.message.includes('permission-denied') || error.message.includes('unauthenticated')) {
-          setUser(null)
-          setIsTokenReady(false)
-        }
-      }}
-    >
-      <AuthErrorBoundary>
-        <AuthContext.Provider value={value}>
-          {children}
-        </AuthContext.Provider>
-      </AuthErrorBoundary>
-    </FirebaseErrorBoundary>
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
   )
 }
 

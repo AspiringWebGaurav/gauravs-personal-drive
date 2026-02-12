@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useCallback } from 'react'
 
 interface SwipeGestureOptions {
   onSwipeLeft?: () => void
@@ -11,6 +11,9 @@ interface SwipeGestureOptions {
   enabled?: boolean
 }
 
+/**
+ * Swipe gesture hook using refs for touch tracking (no re-renders).
+ */
 export function useSwipeGesture(options: SwipeGestureOptions) {
   const {
     onSwipeLeft,
@@ -21,57 +24,59 @@ export function useSwipeGesture(options: SwipeGestureOptions) {
     enabled = true
   } = options
 
-  const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null)
-  const [touchEnd, setTouchEnd] = useState<{ x: number; y: number } | null>(null)
   const elementRef = useRef<HTMLElement>(null)
+  // Use refs instead of state for transient touch data
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null)
+  const touchEndRef = useRef<{ x: number; y: number } | null>(null)
 
-  const handleTouchStart = (e: TouchEvent) => {
-    if (!enabled) return
-    const touch = e.touches[0]
-    setTouchStart({ x: touch.clientX, y: touch.clientY })
-    setTouchEnd(null)
-  }
+  // Stable callback refs to avoid stale closures
+  // Stable callback refs to avoid stale closures
+  const callbacksRef = useRef({ onSwipeLeft, onSwipeRight, onSwipeUp, onSwipeDown })
 
-  const handleTouchMove = (e: TouchEvent) => {
-    if (!enabled || !touchStart) return
-    const touch = e.touches[0]
-    setTouchEnd({ x: touch.clientX, y: touch.clientY })
-  }
-
-  const handleTouchEnd = () => {
-    if (!enabled || !touchStart || !touchEnd) return
-
-    const distanceX = touchStart.x - touchEnd.x
-    const distanceY = touchStart.y - touchEnd.y
-    const isLeftSwipe = distanceX > threshold
-    const isRightSwipe = distanceX < -threshold
-    const isUpSwipe = distanceY > threshold
-    const isDownSwipe = distanceY < -threshold
-
-    // Determine if horizontal or vertical swipe is more dominant
-    if (Math.abs(distanceX) > Math.abs(distanceY)) {
-      // Horizontal swipe
-      if (isLeftSwipe && onSwipeLeft) {
-        onSwipeLeft()
-      } else if (isRightSwipe && onSwipeRight) {
-        onSwipeRight()
-      }
-    } else {
-      // Vertical swipe
-      if (isUpSwipe && onSwipeUp) {
-        onSwipeUp()
-      } else if (isDownSwipe && onSwipeDown) {
-        onSwipeDown()
-      }
-    }
-
-    setTouchStart(null)
-    setTouchEnd(null)
-  }
+  useEffect(() => {
+    callbacksRef.current = { onSwipeLeft, onSwipeRight, onSwipeUp, onSwipeDown }
+  }, [onSwipeLeft, onSwipeRight, onSwipeUp, onSwipeDown])
 
   useEffect(() => {
     const element = elementRef.current
     if (!element || !enabled) return
+
+    const handleTouchStart = (e: TouchEvent) => {
+      const touch = e.touches[0]
+      touchStartRef.current = { x: touch.clientX, y: touch.clientY }
+      touchEndRef.current = null
+    }
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!touchStartRef.current) return
+      const touch = e.touches[0]
+      touchEndRef.current = { x: touch.clientX, y: touch.clientY }
+    }
+
+    const handleTouchEnd = () => {
+      const start = touchStartRef.current
+      const end = touchEndRef.current
+      if (!start || !end) {
+        touchStartRef.current = null
+        touchEndRef.current = null
+        return
+      }
+
+      const distanceX = start.x - end.x
+      const distanceY = start.y - end.y
+      const { onSwipeLeft, onSwipeRight, onSwipeUp, onSwipeDown } = callbacksRef.current
+
+      if (Math.abs(distanceX) > Math.abs(distanceY)) {
+        if (distanceX > threshold && onSwipeLeft) onSwipeLeft()
+        else if (distanceX < -threshold && onSwipeRight) onSwipeRight()
+      } else {
+        if (distanceY > threshold && onSwipeUp) onSwipeUp()
+        else if (distanceY < -threshold && onSwipeDown) onSwipeDown()
+      }
+
+      touchStartRef.current = null
+      touchEndRef.current = null
+    }
 
     element.addEventListener('touchstart', handleTouchStart, { passive: true })
     element.addEventListener('touchmove', handleTouchMove, { passive: true })
@@ -82,7 +87,7 @@ export function useSwipeGesture(options: SwipeGestureOptions) {
       element.removeEventListener('touchmove', handleTouchMove)
       element.removeEventListener('touchend', handleTouchEnd)
     }
-  }, [enabled, onSwipeLeft, onSwipeRight, onSwipeUp, onSwipeDown, threshold])
+  }, [enabled, threshold])
 
   return { elementRef }
 }

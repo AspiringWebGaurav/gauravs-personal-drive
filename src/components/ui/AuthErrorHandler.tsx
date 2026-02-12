@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { AlertTriangle, RefreshCw, RotateCcw, HardDrive, Wifi } from 'lucide-react'
-import { toast } from 'sonner'
 import { useNotification } from '@/components/providers/NotificationProvider'
 
 interface AuthErrorHandlerProps {
@@ -16,7 +15,7 @@ interface AuthErrorHandlerProps {
   maxRetries?: number
 }
 
-export function AuthErrorHandler({ 
+export function AuthErrorHandler({
   error,
   onRetry,
   onHardRefresh,
@@ -25,7 +24,7 @@ export function AuthErrorHandler({
   maxRetries = 3
 }: AuthErrorHandlerProps) {
   const [isPerformingHardRefresh, setIsPerformingHardRefresh] = useState(false)
-  const { showSuccess } = useNotification()
+  const { showSuccess, showError, showLoading } = useNotification()
 
   // Auto-retry with exponential backoff
   useEffect(() => {
@@ -34,14 +33,14 @@ export function AuthErrorHandler({
       const timer = setTimeout(() => {
         onRetry()
       }, retryDelay)
-      
+
       return () => clearTimeout(timer)
     }
   }, [error, retryCount, maxRetries, onRetry])
 
   const performHardRefresh = async () => {
     setIsPerformingHardRefresh(true)
-    toast.loading('Performing hard refresh...', { id: 'hard-refresh' })
+    showLoading('Performing hard refresh...', { toastId: 'hard-refresh' })
 
     try {
       // Clear all browser storage
@@ -81,13 +80,13 @@ export function AuthErrorHandler({
       })
 
       // Show both toast for immediate feedback and dialog for completion
-      toast.success('Hard refresh completed!', { id: 'hard-refresh' })
+      showSuccess('Hard refresh completed!')
       showSuccess(
         'System Refreshed',
         'Hard refresh completed successfully. Your session has been reset.',
-        { autoCloseDuration: 3000 }
+        { autoClose: 3000 }
       )
-      
+
       // Small delay to show the success message
       setTimeout(() => {
         if (onHardRefresh) {
@@ -99,7 +98,7 @@ export function AuthErrorHandler({
       }, 500)
     } catch (error) {
       console.error('Hard refresh failed:', error)
-      toast.error('Hard refresh failed. Reloading page...', { id: 'hard-refresh' })
+      showError('Hard refresh failed. Reloading page...')
       // Fallback to simple reload
       setTimeout(() => window.location.reload(), 1000)
     }
@@ -144,11 +143,11 @@ export function AuthErrorHandler({
           <div className="w-16 h-16 mx-auto bg-gradient-to-br from-red-100 to-red-50 dark:from-red-900/20 dark:to-red-800/20 rounded-2xl flex items-center justify-center shadow-lg">
             {getErrorIcon(error)}
           </div>
-          
+
           <CardTitle className="text-xl font-bold text-gray-900 dark:text-white">
             Authentication Error
           </CardTitle>
-          
+
           <CardDescription className="text-base text-gray-600 dark:text-gray-300 leading-relaxed">
             {getErrorMessage(error)}
           </CardDescription>
@@ -162,7 +161,7 @@ export function AuthErrorHandler({
                 Retry attempt {retryCount} of {maxRetries}
               </p>
               <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                <div 
+                <div
                   className="bg-gradient-to-r from-blue-500 to-purple-600 h-2 rounded-full transition-all duration-300"
                   style={{ width: `${(retryCount / maxRetries) * 100}%` }}
                 />

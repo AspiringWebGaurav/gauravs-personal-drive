@@ -53,7 +53,7 @@ export function EmptyState({
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768)
     }
-    
+
     checkMobile()
     window.addEventListener('resize', checkMobile)
     return () => window.removeEventListener('resize', checkMobile)
@@ -64,7 +64,7 @@ export function EmptyState({
     if (isMobile && !isRootFolder && enableSwipeNavigation) {
       const showTimer = setTimeout(() => setShowSwipeHint(true), 3000)
       const hideTimer = setTimeout(() => setShowSwipeHint(false), 8000)
-      
+
       return () => {
         clearTimeout(showTimer)
         clearTimeout(hideTimer)
@@ -76,7 +76,6 @@ export function EmptyState({
   const { elementRef: swipeRef } = useSwipeGesture({
     onSwipeRight: () => {
       if (currentFolder && onNavigateToParent) {
-        console.log('📱 EmptyState: Swipe right detected - navigating to parent')
         onNavigateToParent()
       }
     },
@@ -150,7 +149,7 @@ export function EmptyState({
                   <ArrowLeft className="h-4 w-4 mr-1 transition-transform duration-200 group-hover:-translate-x-1" />
                   <span className="hidden sm:inline">Back</span>
                 </Button>
-                
+
                 {/* Home Button */}
                 <Button
                   variant="ghost"
@@ -162,7 +161,7 @@ export function EmptyState({
                   <Home className="h-4 w-4 transition-transform duration-200 group-hover:scale-110" />
                   <span className="hidden sm:inline ml-1">Home</span>
                 </Button>
-                
+
                 {/* Current location indicator */}
                 <div className="flex items-center flex-1 min-w-0 overflow-hidden">
                   <ChevronRight className="h-4 w-4 mx-1 text-muted-foreground/50 flex-shrink-0" />
@@ -192,7 +191,7 @@ export function EmptyState({
                   </div>
                 </div>
               </div>
-              
+
               {/* Folder depth indicator */}
               {folderDepth > 0 && (
                 <div
@@ -208,19 +207,19 @@ export function EmptyState({
             </div>
           </div>
         )}
-        
+
         <CardContent className="flex flex-col items-center justify-center py-16 px-6">
           <div className="mb-6 animate-in zoom-in-50 duration-700">
             <div className="flex items-center justify-center w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/20 dark:to-purple-900/20 transition-all duration-300 hover:scale-110 hover:rotate-3">
               <Cloud className="w-10 h-10 text-muted-foreground transition-all duration-300 hover:text-primary" />
             </div>
           </div>
-          
+
           <div className="text-center space-y-3 max-w-md animate-in slide-in-from-bottom-3 duration-500 delay-200">
             <h3 className="text-xl font-semibold text-foreground transition-colors duration-200">
               {isRootFolder ? 'Welcome to your drive!' : 'This folder is empty'}
             </h3>
-            
+
             <p className="text-muted-foreground transition-colors duration-200">
               {isRootFolder
                 ? 'Start by uploading your first files or creating folders to organize your content.'
@@ -235,12 +234,8 @@ export function EmptyState({
               className="glass-button bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 transition-all duration-300 hover:scale-105 hover:shadow-lg focus:ring-2 focus:ring-primary/30"
               size="lg"
               onClick={() => {
-                console.log('🔍 DEBUG: Upload Files button clicked in EmptyState')
                 if (onUploadTrigger) {
-                  console.log('🔍 DEBUG: Calling onUploadTrigger callback')
                   onUploadTrigger()
-                } else {
-                  console.log('🔍 DEBUG: No onUploadTrigger callback provided')
                 }
               }}
               aria-label="Upload files to current folder"
@@ -248,12 +243,10 @@ export function EmptyState({
               <Upload className="w-5 h-5 mr-2 transition-transform duration-200 group-hover:scale-110" />
               Upload Files
             </Button>
-            
+
             <CreateFolderDialog
               currentFolder={currentFolder}
-              onSuccess={() => {
-                console.log('Folder created successfully from EmptyState')
-              }}
+              onSuccess={() => { }}
             >
               <Button
                 variant="outline"

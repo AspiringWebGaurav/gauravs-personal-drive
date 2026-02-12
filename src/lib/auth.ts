@@ -5,6 +5,8 @@ import {
   signOut as firebaseSignOut,
   onAuthStateChanged,
   updateProfile,
+  setPersistence,
+  browserSessionPersistence,
   type User as FirebaseUser
 } from 'firebase/auth'
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore'
@@ -16,6 +18,10 @@ import { logger } from '@/lib/logger'
 export const signInWithGoogle = async () => {
   try {
     logger.auth('Starting Google sign-in...')
+
+    // Enforce Session Persistence (Tab close = Logout)
+    await setPersistence(auth, browserSessionPersistence)
+
     const signInStartTime = Date.now()
     const result = await signInWithPopup(auth, googleProvider)
     const user = result.user
@@ -69,9 +75,9 @@ export const signInWithGoogle = async () => {
       message: error.message,
       stack: error.stack
     })
-    return { 
-      success: false, 
-      error: error.message || 'Failed to sign in with Google' 
+    return {
+      success: false,
+      error: error.message || 'Failed to sign in with Google'
     }
   }
 }
@@ -82,9 +88,9 @@ export const signOut = async () => {
     return { success: true }
   } catch (error: any) {
     logger.error('Error signing out:', error)
-    return { 
-      success: false, 
-      error: error.message || 'Failed to sign out' 
+    return {
+      success: false,
+      error: error.message || 'Failed to sign out'
     }
   }
 }
@@ -108,7 +114,7 @@ export const getAuthToken = async () => {
   try {
     const user = getCurrentUser()
     if (!user) return null
-    
+
     const token = await user.getIdToken()
     return token
   } catch (error) {
@@ -157,14 +163,14 @@ export const deleteUserAccount = async () => {
     // Note: In a production app, you'd want to delete all user data from Firestore
     // and Storage before deleting the auth account. This would typically be done
     // via a Cloud Function triggered by auth user deletion.
-    
+
     await user.delete()
     return { success: true }
   } catch (error: any) {
     logger.error('Error deleting account:', error)
-    return { 
-      success: false, 
-      error: error.message || 'Failed to delete account' 
+    return {
+      success: false,
+      error: error.message || 'Failed to delete account'
     }
   }
 }
@@ -178,16 +184,16 @@ export const getUserDisplayName = (user: FirebaseUser | null): string => {
 // Utility to get user initials for avatar
 export const getUserInitials = (user: FirebaseUser | null): string => {
   if (!user) return 'A'
-  
+
   if (user.displayName) {
     const names = user.displayName.split(' ')
     return names.map(name => name.charAt(0)).join('').toUpperCase().slice(0, 2)
   }
-  
+
   if (user.email) {
     return user.email.charAt(0).toUpperCase()
   }
-  
+
   return 'U'
 }
 

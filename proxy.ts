@@ -7,12 +7,12 @@ const protectedRoutes = ['/dashboard']
 // Routes that redirect authenticated users (like login page)
 const authRoutes = ['/login', '/']
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Get the session token from cookies
   const sessionToken = request.cookies.get('session')?.value
-logger.log(`Middleware: ${pathname}, Session: ${sessionToken ? 'Yes' : 'No'}`)
+  logger.log(`Middleware: ${pathname}, Session: ${sessionToken ? 'Yes' : 'No'}`)
 
 
   // Check if the current path is a protected route
@@ -69,3 +69,5 @@ export const config = {
     '/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
+
+export default proxy

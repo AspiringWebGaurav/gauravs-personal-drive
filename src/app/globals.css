@@ -4,7 +4,7 @@
 
 :root {
   --radius: 0.5rem;
-  
+
   /* Light theme */
   --background: 0 0% 100%;
   --foreground: 0 0% 9%;
@@ -30,7 +30,7 @@
   --chart-3: 197 37% 24%;
   --chart-4: 43 74% 66%;
   --chart-5: 27 87% 67%;
-  
+
   /* Sidebar colors */
   --sidebar: 0 0% 98%;
   --sidebar-foreground: 0 0% 9%;
@@ -40,199 +40,261 @@
   --sidebar-accent-foreground: 0 0% 13%;
   --sidebar-border: 0 0% 90%;
   --sidebar-ring: 0 0% 45%;
+
+  /* Premium Glass Tokens */
+  --glass-border: 0 0% 100%;
+  --glass-surface: 0 0% 100%;
+  --glass-shadow: 0 0% 0%;
 }
 
 .dark {
-  --background: 0 0% 9%;
+  --background: 240 10% 4%;
   --foreground: 0 0% 98%;
-  --card: 0 0% 13%;
+  --card: 240 10% 6%;
   --card-foreground: 0 0% 98%;
-  --popover: 0 0% 13%;
+  --popover: 240 10% 6%;
   --popover-foreground: 0 0% 98%;
-  --primary: 0 0% 90%;
-  --primary-foreground: 0 0% 13%;
-  --secondary: 0 0% 17%;
+  --primary: 0 0% 98%;
+  --primary-foreground: 240 5% 10%;
+  --secondary: 240 4% 16%;
   --secondary-foreground: 0 0% 98%;
-  --muted: 0 0% 17%;
-  --muted-foreground: 0 0% 63%;
-  --accent: 0 0% 17%;
+  --muted: 240 4% 16%;
+  --muted-foreground: 240 5% 65%;
+  --accent: 240 4% 16%;
   --accent-foreground: 0 0% 98%;
-  --destructive: 0 62% 53%;
+  --destructive: 0 62% 30%;
   --destructive-foreground: 0 0% 98%;
-  --border: 0 0% 17%;
-  --input: 0 0% 17%;
-  --ring: 0 0% 63%;
+  --border: 240 4% 16%;
+  --input: 240 4% 16%;
+  --ring: 240 5% 65%;
   --chart-1: 220 70% 50%;
   --chart-2: 160 60% 45%;
   --chart-3: 30 80% 55%;
   --chart-4: 280 65% 60%;
   --chart-5: 340 75% 55%;
-  
+
   /* Dark sidebar colors */
-  --sidebar: 0 0% 13%;
+  --sidebar: 240 10% 4%;
   --sidebar-foreground: 0 0% 98%;
   --sidebar-primary: 220 70% 50%;
   --sidebar-primary-foreground: 0 0% 98%;
-  --sidebar-accent: 0 0% 17%;
+  --sidebar-accent: 240 4% 16%;
   --sidebar-accent-foreground: 0 0% 98%;
-  --sidebar-border: 0 0% 17%;
-  --sidebar-ring: 0 0% 63%;
+  --sidebar-border: 240 4% 16%;
+  --sidebar-ring: 240 5% 65%;
+
+  /* Premium Glass Tokens Dark */
+  --glass-border: 0 0% 100%;
+  --glass-surface: 0 0% 0%;
+  --glass-shadow: 0 0% 0%;
 }
 
 @layer base {
   * {
     @apply border-border;
   }
-  
+
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
-  
+
   /* Ensure proper font loading */
   .font-sans {
     font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   }
-  
+
   .font-mono {
     font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, "SF Mono", monospace;
   }
 }
 
 @layer components {
+
   /* Glass morphism effects */
   .glass {
-    @apply backdrop-blur-xl bg-white/10 dark:bg-black/10 border border-white/20 dark:border-white/10;
+    @apply backdrop-blur-2xl bg-white/60 dark:bg-black/40 border border-white/20 dark:border-white/5;
   }
-  
+
   .glass-card {
-    @apply glass rounded-xl shadow-xl;
+    @apply glass rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300;
   }
-  
+
   .glass-button {
-    @apply glass rounded-lg transition-all duration-200 hover:bg-white/20 dark:hover:bg-white/5;
+    @apply glass rounded-xl transition-all duration-300 hover:bg-white/80 dark:hover:bg-white/10 active:scale-95;
   }
-  
+
   /* Upload area styles */
   .upload-area {
-    @apply glass-card border-dashed border-2 border-muted-foreground/30 hover:border-primary/50 transition-colors duration-200;
+    @apply glass-card border-dashed border-2 border-muted-foreground/20 hover:border-primary/50 transition-all duration-300;
   }
-  
+
   .upload-area-active {
-    @apply border-primary bg-primary/5 dark:bg-primary/10;
+    @apply border-primary bg-primary/5 dark:bg-primary/10 scale-[1.01] shadow-xl;
   }
-  
+
   /* File card hover effects */
   .file-card {
-    @apply glass-card hover:scale-[1.02] hover:shadow-2xl transition-all duration-200 cursor-pointer;
+    @apply glass-card hover:-translate-y-1 hover:shadow-2xl transition-all duration-300 cursor-pointer;
   }
-  
+
   /* Button variants */
   .btn-primary {
     @apply bg-primary text-primary-foreground shadow hover:bg-primary/90 inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2;
   }
-  
+
   .btn-secondary {
     @apply bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80 inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2;
   }
-  
+
   .btn-outline {
     @apply border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2;
   }
-  
+
   /* Card styles */
   .card {
     @apply rounded-xl border bg-card text-card-foreground shadow;
   }
-  
+
   .card-header {
     @apply flex flex-col space-y-1.5 p-6;
   }
-  
+
   .card-content {
     @apply p-6 pt-0;
   }
-  
+
   /* Input styles */
   .input {
     @apply flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50;
   }
-  
+
   /* Custom scrollbar */
   .custom-scrollbar::-webkit-scrollbar {
     width: 6px;
   }
-  
+
   .custom-scrollbar::-webkit-scrollbar-track {
     @apply bg-transparent;
   }
-  
+
   .custom-scrollbar::-webkit-scrollbar-thumb {
     @apply bg-muted-foreground/20 rounded-full hover:bg-muted-foreground/30;
   }
 }
 
 @layer utilities {
+
   /* Animation utilities */
   .animate-fade-in {
     animation: fadeIn 0.3s ease-in-out;
   }
-  
+
   .animate-slide-up {
     animation: slideUp 0.3s ease-out;
   }
-  
+
   .animate-slide-left {
     animation: slideLeft 0.3s ease-out;
   }
-  
+
   .animate-slide-right {
     animation: slideRight 0.3s ease-out;
   }
-  
+
   @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 1;
+    }
   }
-  
+
   @keyframes slideUp {
     from {
       opacity: 0;
       transform: translateY(20px);
     }
+
     to {
       opacity: 1;
       transform: translateY(0);
     }
   }
-  
+
   @keyframes slideLeft {
     from {
       opacity: 0;
       transform: translateX(20px);
     }
+
     to {
       opacity: 1;
       transform: translateX(0);
     }
   }
-  
+
   @keyframes slideRight {
     from {
       opacity: 0;
       transform: translateX(-20px);
     }
+
     to {
       opacity: 1;
       transform: translateX(0);
     }
   }
-  
+
+  /* Vertical Shimmer Animation (Top to Bottom) */
+  @keyframes shimmerVertical {
+    0% {
+      background-position: 0% -200%;
+    }
+
+    100% {
+      background-position: 0% 200%;
+    }
+  }
+
+  .animate-shimmer-vertical {
+    background: linear-gradient(to bottom,
+        var(--secondary) 0%,
+        var(--muted-foreground) 15%,
+        var(--secondary) 30%);
+    background-size: 100% 200%;
+    animation: shimmerVertical 1.5s infinite linear;
+    opacity: 0.3;
+  }
+
+  /* Safe Area Utilities */
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* GPU-accelerated smooth scrolling */
+  .scroll-smooth-gpu {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+    overscroll-behavior: contain;
+  }
+
+  /* Prevent tap highlight flash on mobile */
+  .no-tap-highlight {
+    -webkit-tap-highlight-color: transparent;
+  }
+
   /* Utility classes for consistent spacing */
   .container-padding {
     @apply px-4 sm:px-6 lg:px-8;
   }
-  
+
   .section-spacing {
     @apply py-8 sm:py-12 lg:py-16;
   }

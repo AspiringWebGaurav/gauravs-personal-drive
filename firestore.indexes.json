@@ -5,11 +5,15 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "userId",
+          "fieldPath": "folderId",
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "folderId", 
+          "fieldPath": "trashed",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "userId",
           "order": "ASCENDING"
         },
         {
@@ -20,18 +24,22 @@
     },
     {
       "collectionGroup": "folders",
-      "queryScope": "COLLECTION", 
+      "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "userId",
-          "order": "ASCENDING"
-        },
         {
           "fieldPath": "parentId",
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "createdAt", 
+          "fieldPath": "trashed",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
           "order": "DESCENDING"
         }
       ]

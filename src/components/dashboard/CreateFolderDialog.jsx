@@ -15,26 +15,24 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { FolderPlus, Loader2 } from 'lucide-react'
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
-import { firestore } from '@/lib/firebaseClient'
-import { toast } from 'sonner'
+import { firestoreService } from '@/services/firestoreService'
 import { useNotification } from '@/components/providers/NotificationProvider'
 
 export function CreateFolderDialog({ currentFolder, onSuccess, children }) {
   const { user } = useAuth()
-  const { showSuccess } = useNotification()
+  const { showSuccess, showError } = useNotification()
   const [open, setOpen] = useState(false)
   const [folderName, setFolderName] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
   const handleCreate = async () => {
     if (!folderName.trim()) {
-      toast.error('Folder name is required')
+      showError('Folder name is required')
       return
     }
 
     if (!user) {
-      toast.error('You must be signed in to create folders')
+      showError('You must be signed in to create folders')
       return
     }
 
@@ -42,27 +40,19 @@ export function CreateFolderDialog({ currentFolder, onSuccess, children }) {
 
     try {
       // Create folder document in Firestore
-      await addDoc(collection(firestore, 'folders'), {
-        userId: user.uid,
+      await firestoreService.createFolder(user.uid, {
         name: folderName.trim(),
         parentId: currentFolder?.id || null,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
       })
 
-      // Keep toast for immediate feedback, add dialog for completion
-      toast.success(`Folder "${folderName}" created successfully!`)
-      showSuccess(
-        'Folder Created',
-        `"${folderName}" has been created successfully${currentFolder ? ` in "${currentFolder.name}"` : ' in your drive'}`,
-        { autoCloseDuration: 2500 }
-      )
+      // Keep toast for immediate feedback
+      showSuccess('Folder Created', `"${folderName}" created successfully`)
       setFolderName('')
       setOpen(false)
       onSuccess?.()
     } catch (error) {
       console.error('Error creating folder:', error)
-      toast.error('Failed to create folder. Please try again.')
+      showError('Failed to create folder. Please try again.')
     } finally {
       setIsLoading(false)
     }
@@ -88,13 +78,13 @@ export function CreateFolderDialog({ currentFolder, onSuccess, children }) {
         <DialogHeader>
           <DialogTitle>Create New Folder</DialogTitle>
           <DialogDescription>
-            {currentFolder 
+            {currentFolder
               ? `Create a new folder inside "${currentFolder.name}"`
               : 'Create a new folder in your drive'
             }
           </DialogDescription>
         </DialogHeader>
-        
+
         <div className="space-y-4 py-4">
           <div className="space-y-2">
             <Label htmlFor="folder-name">Folder Name</Label>

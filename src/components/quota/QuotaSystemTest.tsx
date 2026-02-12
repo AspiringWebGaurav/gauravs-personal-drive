@@ -22,8 +22,8 @@ export function QuotaSystemTest() {
     try {
       const quota = await getCurrentQuota()
       if (quota) {
-        addResult(`✅ Current quota: ${Math.round(quota.usedBytes / (1024*1024))}MB / ${Math.round(quota.limitBytes / (1024*1024))}MB`)
-        addResult(`📊 Physical: ${Math.round(quota.usedPhysicalBytes / (1024*1024))}MB, Deleted: ${Math.round(quota.deletedBytesAccrued / (1024*1024))}MB`)
+        addResult(`✅ Current quota: ${Math.round(quota.usedBytes / (1024 * 1024))}MB / ${Math.round(quota.limitBytes / (1024 * 1024))}MB`)
+        addResult(`📊 Physical: ${Math.round(quota.usedPhysicalBytes / (1024 * 1024))}MB, Deleted: ${Math.round(quota.deletedBytesAccrued / (1024 * 1024))}MB`)
         addResult(`🗓️ Resets: ${new Date(quota.resetAt).toLocaleString()}`)
       } else {
         addResult('❌ Failed to get quota information')
@@ -80,7 +80,7 @@ export function QuotaSystemTest() {
       const response = await fetch('/api/quota?projectId=default')
       if (response.ok) {
         const data = await response.json()
-        addResult(`✅ API Response: Month ${data.monthKey}, Used: ${Math.round(data.usedBytes / (1024*1024))}MB`)
+        addResult(`✅ API Response: Month ${data.monthKey}, Used: ${Math.round(data.usedBytes / (1024 * 1024))}MB`)
       } else {
         addResult(`❌ API Error: ${response.status} ${response.statusText}`)
       }
@@ -185,12 +185,12 @@ export function QuotaSystemTest() {
             <div>
               <h4 className="font-medium mb-2">1. Basic Upload with Quota Check</h4>
               <pre className="bg-muted p-3 rounded text-sm overflow-x-auto">
-{`import { guardUpload, logQuotaActivity } from '@/lib/quotaGuard'
+                {`import { guardUpload, logQuotaActivity } from '@/lib/quotaGuard'
 
 const handleUpload = async (file: File) => {
   const guard = await guardUpload(file)
   if (!guard.allowed) {
-    alert(guard.message)
+    toast.error(guard.message) // Use toast instead of alert
     return
   }
   
@@ -204,7 +204,7 @@ const handleUpload = async (file: File) => {
             <div>
               <h4 className="font-medium mb-2">2. Enhanced UsageBar Component</h4>
               <pre className="bg-muted p-3 rounded text-sm overflow-x-auto">
-{`import { UsageBar } from '@/components/dashboard/UsageBar'
+                {`import { UsageBar } from '@/components/dashboard/UsageBar'
 
 // In your dashboard component:
 <UsageBar projectId="default" pollMs={10000} />`}
@@ -214,7 +214,7 @@ const handleUpload = async (file: File) => {
             <div>
               <h4 className="font-medium mb-2">3. Delete with Quota Tracking</h4>
               <pre className="bg-muted p-3 rounded text-sm overflow-x-auto">
-{`const handleDelete = async (fileId: string, fileSize: number) => {
+                {`const handleDelete = async (fileId: string, fileSize: number) => {
   await fetch('/api/files', {
     method: 'DELETE',
     body: JSON.stringify({ fileId, fileSize, userId })
