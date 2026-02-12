@@ -90,17 +90,20 @@ export function MobileStorageIndicator({
     const onStorage = (e: StorageEvent) => {
       if (e.key === "quota:update") mutate();
     };
+    const onQuotaUpdate = () => mutate();
 
     window.addEventListener("upload:start", onUploadStart);
     window.addEventListener("upload:complete", onUploadComplete);
     window.addEventListener("file:operation", onFileOp);
     window.addEventListener("storage", onStorage);
+    window.addEventListener("quota:update", onQuotaUpdate);
 
     return () => {
       window.removeEventListener("upload:start", onUploadStart);
       window.removeEventListener("upload:complete", onUploadComplete);
       window.removeEventListener("file:operation", onFileOp);
       window.removeEventListener("storage", onStorage);
+      window.removeEventListener("quota:update", onQuotaUpdate);
       clearTimeout(timeoutId);
     };
   }, [mutate]);

@@ -226,23 +226,25 @@ export const FileCard = React.memo(function FileCard({ file, currentFolder }) {
       // Soft Delete
       await firestoreService.softDeleteFile(file.id)
 
-      // Close dialog and show success
-      setShowDeleteDialog(false)
-      window.dispatchEvent(new CustomEvent('quota:update'))
-
-      // Trigger live update in parent list
-      if (props.onDeleteSuccess) {
-        props.onDeleteSuccess();
-      }
-
-      if (props.onDeleteSuccess) {
-        props.onDeleteSuccess();
-      }
-
+      // Success: Show toast immediately
       showSuccess(
         'File Trashed',
         `"${file.filename}" moved to recycle bin`
       )
+
+      // Close dialog
+      setShowDeleteDialog(false)
+
+      // Trigger UI updates (safe-guarded)
+      try {
+        window.dispatchEvent(new CustomEvent('quota:update'))
+        if (props.onDeleteSuccess) {
+          props.onDeleteSuccess();
+        }
+      } catch (uiError) {
+        console.warn("UI refresh failed after delete:", uiError);
+      }
+
     } catch (error) {
       console.error('Error deleting file:', error)
       showError('Failed to delete file.')
