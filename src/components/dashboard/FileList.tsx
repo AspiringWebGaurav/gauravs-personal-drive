@@ -1,14 +1,16 @@
 "use client";
 
-import { useCallback, memo, useState } from "react";
+import { useCallback, memo, useState, useEffect } from "react";
 import { Grid } from "react-window";
 import { AutoSizer } from "react-virtualized-auto-sizer";
 // @ts-ignore
 import { FileCard } from "./FileCard";
 import { FolderCard } from "./FolderCard";
 import { FileTableView } from "./FileTableView";
+import { FilePreviewModal } from "./FilePreviewModal";
 import { motion } from "framer-motion";
 import { ActionDataBar } from "./ActionDataBar";
+import { CheckCircle2, Square } from "lucide-react";
 
 interface FileData {
   id: string;
@@ -46,28 +48,21 @@ interface FileListProps {
 
 // Grid Configuration
 const GAP = 16;
-const CELL_HEIGHT = 300; // Height of cards + gap
+const CELL_HEIGHT = 300;
 const MIN_COL_WIDTH = 220;
 
 // Cell component defined outside to prevent re-creation
-const Cell = memo(({ columnIndex, rowIndex, style, items, columnCount, onFolderOpen, currentFolder, selectedIds, toggleSelection, onRefresh }: any) => {
+const Cell = memo(({ columnIndex, rowIndex, style, items, columnCount, onFolderOpen, currentFolder, selectedIds, toggleSelection, onRefresh, onOpenPreview }: any) => {
   const index = rowIndex * columnCount + columnIndex;
 
   if (index >= items.length) return null;
 
   const item = items[index];
   const isFolder = item.type === 'folder';
-  const isSelected = selectedIds?.has(item.id)
+  const isSelected = selectedIds?.has(item.id);
+  const selectionMode = selectedIds && selectedIds.size > 0;
   const FileCardAny = FileCard as any;
 
-  const handleSelect = (e: any) => {
-    // Logic for shift/ctrl keys
-    const multiSelect = e?.ctrlKey || e?.metaKey
-    const rangeSelect = e?.shiftKey
-    toggleSelection(item.id, multiSelect, rangeSelect)
-  }
-
-  // Use padding to create the gap effect instead of manipulating top/left which might be null due to transform
   const combinedStyle = {
     ...style,
     boxSizing: 'border-box',
@@ -89,9 +84,16 @@ const Cell = memo(({ columnIndex, rowIndex, style, items, columnCount, onFolderO
             file={item as FileData}
             currentFolder={currentFolder}
             isSelected={isSelected}
-            onSelect={toggleSelection ? () => toggleSelection(item.id, true, false) : undefined}
-            selectionMode={selectedIds && selectedIds.size > 0}
+            onSelect={(e: any) => {
+              if (toggleSelection) {
+                const multiSelect = e?.ctrlKey || e?.metaKey;
+                const rangeSelect = e?.shiftKey;
+                toggleSelection(item.id, multiSelect, rangeSelect);
+              }
+            }}
+            selectionMode={selectionMode}
             onDeleteSuccess={onRefresh}
+            onOpenPreview={onOpenPreview}
           />
         )}
       </div>
@@ -111,37 +113,15 @@ export const FileList = memo(function FileList({
   isLoadingMore,
   onRefresh
 }: FileListProps) {
+  // ── Preview state (shared across all FileCards in grid view) ────────
+  const [gridPreviewFile, setGridPreviewFile] = useState<FileData | null>(null);
+  const openPreview = useCallback((file: FileData) => {
+    setGridPreviewFile(file);
+  }, []);
 
-
-
-  // Multi-select state
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [lastSelectedId, setLastSelectedId] = useState<string | null>(null)
-
-  const toggleSelection = useCallback((id: string, multiSelect: boolean, rangeSelect: boolean) => {
-    setSelectedIds(prev => {
-      const next = new Set(multiSelect ? prev : [])
-
-      if (rangeSelect && lastSelectedId) {
-        // Find range (simplified for now - requires flat list index finding, leaving basic range for next iteration if needed)
-        // For now, Shift+Click just adds without clearing
-        next.add(id)
-      } else {
-        if (next.has(id)) {
-          next.delete(id)
-        } else {
-          next.add(id)
-        }
-      }
-      return next
-    })
-    setLastSelectedId(id)
-  }, [lastSelectedId])
-
-  const clearSelection = useCallback(() => {
-    setSelectedIds(new Set())
-    setLastSelectedId(null)
-  }, [])
+  // ── Multi-select state ──────────────────────────────────────────────
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
 
   // Combine items: Folders first, then Files
   const allItems = [
@@ -149,48 +129,120 @@ export const FileList = memo(function FileList({
     ...files.map(f => ({ ...f, type: 'file' }))
   ];
 
-  // Pass selection props to cell
+  const fileItems = files.map(f => ({ ...f, type: 'file' }));
+
+  // ── Toggle selection ───────────────────────────────────────────────
+  const toggleSelection = useCallback((id: string, multiSelect: boolean, rangeSelect: boolean) => {
+    setSelectedIds(prev => {
+      // Shift+Click: select range
+      if (rangeSelect && lastSelectedId) {
+        const next = new Set(prev);
+        const allFileIds = fileItems.map(f => f.id);
+        const startIdx = allFileIds.indexOf(lastSelectedId);
+        const endIdx = allFileIds.indexOf(id);
+        if (startIdx !== -1 && endIdx !== -1) {
+          const [from, to] = startIdx < endIdx ? [startIdx, endIdx] : [endIdx, startIdx];
+          for (let i = from; i <= to; i++) {
+            next.add(allFileIds[i]);
+          }
+        } else {
+          next.add(id);
+        }
+        return next;
+      }
+
+      // Ctrl/Cmd+Click: add/remove single
+      if (multiSelect) {
+        const next = new Set(prev);
+        if (next.has(id)) {
+          next.delete(id);
+        } else {
+          next.add(id);
+        }
+        return next;
+      }
+
+      // Plain click: toggle single (clear others)
+      if (prev.has(id) && prev.size === 1) {
+        return new Set(); // deselect if only this one was selected
+      }
+      return new Set([id]);
+    });
+    setLastSelectedId(id);
+  }, [lastSelectedId, fileItems]);
+
+  // ── Select all / clear ─────────────────────────────────────────────
+  const selectAll = useCallback(() => {
+    setSelectedIds(new Set(fileItems.map(f => f.id)));
+  }, [fileItems]);
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+    setLastSelectedId(null);
+  }, []);
+
+  const isAllSelected = fileItems.length > 0 && selectedIds.size === fileItems.length;
+  const isSomeSelected = selectedIds.size > 0;
+
+  // ── Keyboard shortcuts ─────────────────────────────────────────────
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      // Ctrl+A / Cmd+A → select all
+      if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+        // Only if not inside an input/textarea
+        const tag = (e.target as HTMLElement)?.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+        e.preventDefault();
+        selectAll();
+      }
+      // Escape → clear selection
+      if (e.key === 'Escape') {
+        clearSelection();
+      }
+      // Delete → if items selected, trigger delete
+      if (e.key === 'Delete' && selectedIds.size > 0) {
+        // Let the ActionDataBar handle the actual deletion
+        // We dispatch a custom event that ActionDataBar can listen to
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [selectAll, clearSelection, selectedIds.size]);
+
+  // ── Refresh helper ─────────────────────────────────────────────────
+  const handleRefresh = useCallback(() => {
+    if (onRefresh) {
+      onRefresh();
+    } else {
+      window.dispatchEvent(new CustomEvent('quota:update'));
+    }
+  }, [onRefresh]);
+
+  // ── Selected items for ActionDataBar ───────────────────────────────
+  const getSelectedItems = useCallback(() => {
+    const selected: any[] = [];
+    for (const item of folders) {
+      if (selectedIds.has(item.id)) selected.push({ ...item, type: 'folder' });
+    }
+    for (const item of files) {
+      if (selectedIds.has(item.id)) selected.push({ ...item, type: 'file' });
+    }
+    return selected;
+  }, [selectedIds, folders, files]);
+
+  // ── Cell data for grid ─────────────────────────────────────────────
   const cellData = {
     items: allItems,
-    columnCount: 0, // Injected by grid
+    columnCount: 0,
     onFolderOpen,
     currentFolder,
     selectedIds,
     toggleSelection,
-    onRefresh
-  }
+    onRefresh: handleRefresh,
+    onOpenPreview: openPreview
+  };
 
-  // Helpers for ActionDataBar
-  const getSelectedItems = useCallback(() => {
-    const selected = []
-    for (const item of folders) {
-      if (selectedIds.has(item.id)) selected.push({ ...item, type: 'folder' })
-    }
-    for (const item of files) {
-      if (selectedIds.has(item.id)) selected.push({ ...item, type: 'file' })
-    }
-    return selected
-  }, [selectedIds, folders, files])
-
-  // Need a refresh trigger for parent content - for now we can rely on SWR automatic revalidation or parent refresh
-  // But passed callback onRefresh would be better. For now assuming parent handles it or specific events.
-  const handleRefresh = useCallback(() => {
-    // Ideally trigger parent refresh. 
-    // We can dispatch an event or use a callback prop if added.
-    // For now, let's dispatch a custom event that useFolderData might listen to? 
-    // Or simpler: Just window reload or query invalidation.
-    // Let's use MUTATE via global SWR or...
-    // Since this is inside FileList, we don't have direct mutate access easily without props.
-    // Let's assume the mutation happens in ActionDataBar or we pass a dummy refresh.
-    // Actually ActionDataBar handles the firestore calls, so local list needs to update.
-    // We'll rely on the parent (page.tsx) to handle data refreshment, OR
-    // we can accept an onRefresh prop in FileList if not already there.
-    // It seems we don't have onRefresh prop.
-    window.location.reload() // Brute force fallback for now until perfected
-  }, [])
-
-  // Conditionally import ActionDataBar to avoid circular dep issues if any, or just use it.
-
+  // ── Table view ─────────────────────────────────────────────────────
   if (viewMode === "table") {
     return (
       <motion.div
@@ -198,6 +250,7 @@ export const FileList = memo(function FileList({
         animate={{ opacity: 1 }}
         className="h-full"
       >
+        {/* @ts-ignore */}
         <FileTableView
           files={files}
           folders={folders}
@@ -206,27 +259,72 @@ export const FileList = memo(function FileList({
           onLoadMore={onLoadMore}
           hasMore={hasMore}
           isLoadingMore={isLoadingMore}
+          selectedIds={selectedIds}
+          toggleSelection={toggleSelection}
+          selectAll={selectAll}
+          clearSelection={clearSelection}
+          isAllSelected={isAllSelected}
+          isSomeSelected={isSomeSelected}
+          onRefresh={handleRefresh}
+        />
+        <ActionDataBar
+          selectedCount={selectedIds.size}
+          onClearSelection={clearSelection}
+          selectedItems={getSelectedItems()}
+          onRefresh={handleRefresh}
         />
       </motion.div>
     );
   }
 
+  // ── Grid view ──────────────────────────────────────────────────────
   return (
     <>
+      {/* Select All Bar */}
+      {fileItems.length > 0 && (
+        <div className="flex items-center gap-3 px-4 py-2 mb-1">
+          <button
+            onClick={() => isAllSelected ? clearSelection() : selectAll()}
+            className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            title={isAllSelected ? 'Deselect all' : 'Select all'}
+          >
+            {isAllSelected ? (
+              <CheckCircle2 className="w-4 h-4 text-primary" />
+            ) : isSomeSelected ? (
+              <div className="w-4 h-4 rounded border-2 border-primary bg-primary/20 flex items-center justify-center">
+                <div className="w-2 h-0.5 bg-primary rounded" />
+              </div>
+            ) : (
+              <Square className="w-4 h-4" />
+            )}
+            <span>
+              {isAllSelected
+                ? `All ${fileItems.length} selected`
+                : isSomeSelected
+                  ? `${selectedIds.size} selected`
+                  : 'Select all'}
+            </span>
+          </button>
+          {isSomeSelected && (
+            <button
+              onClick={clearSelection}
+              className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="h-full w-full" onClick={(e) => {
-        // Clear selection when clicking empty background
-        if (e.target === e.currentTarget) clearSelection()
+        if (e.target === e.currentTarget) clearSelection();
       }}>
         <AutoSizer
           renderProp={({ height, width }: { height: number | undefined; width: number | undefined }) => {
-            // If dimensions are not yet available or invalid, return null
             if (!height || !width || isNaN(height) || isNaN(width)) return null;
 
-            // Calculate columns
-            // Mobile optimization: Use smaller min width for mobile (< 640px) to allow 2 columns
             const isMobile = width < 640;
             const effectiveMinColWidth = isMobile ? 160 : MIN_COL_WIDTH;
-
             const columnCount = Math.max(1, Math.floor((width + GAP) / (effectiveMinColWidth + GAP)));
             const columnWidth = (width - GAP) / columnCount;
             const rowCount = Math.ceil(allItems.length / columnCount);
@@ -259,12 +357,31 @@ export const FileList = memo(function FileList({
         />
       </div>
 
-      {/* Render Action Bar */}
       <ActionDataBar
         selectedCount={selectedIds.size}
         onClearSelection={clearSelection}
         selectedItems={getSelectedItems()}
         onRefresh={handleRefresh}
+      />
+
+      {/* Shared preview modal for grid view — enables prev/next across all files */}
+      <FilePreviewModal
+        isOpen={!!gridPreviewFile}
+        onClose={() => setGridPreviewFile(null)}
+        file={gridPreviewFile}
+        allFiles={files}
+        onNavigate={(f: any) => setGridPreviewFile(f)}
+        onDelete={gridPreviewFile ? async () => {
+          try {
+            const { firestoreService } = await import('@/services/firestoreService');
+            await firestoreService.softDeleteFile(gridPreviewFile.id);
+            setGridPreviewFile(null);
+            window.dispatchEvent(new CustomEvent('quota:update'));
+            handleRefresh();
+          } catch (e) {
+            console.error(e);
+          }
+        } : undefined}
       />
     </>
   );

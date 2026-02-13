@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, memo } from 'react'
+import { useState, memo, useCallback } from 'react'
 import { Grid } from "react-window";
 import { AutoSizer } from 'react-virtualized-auto-sizer'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,20 +24,26 @@ import {
   Archive,
   FileIcon,
   Folder,
-  ArrowUpDown
+  ArrowUpDown,
+  CheckCircle2,
+  Square
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { usageService } from '@/services/usageService'
 import { useNotification } from '@/components/providers/NotificationProvider'
 import { useDownload } from '@/hooks/useDownload'
+import { FilePreviewModal } from './FilePreviewModal'
 
-import { ImageViewer } from './ImageViewer'
-
-export function FileTableView({ files, folders, onFolderOpen, currentFolder, onLoadMore, hasMore, isLoadingMore }) {
+export function FileTableView({
+  files, folders, onFolderOpen, currentFolder,
+  onLoadMore, hasMore, isLoadingMore,
+  // Selection props from parent
+  selectedIds, toggleSelection, selectAll, clearSelection,
+  isAllSelected, isSomeSelected, onRefresh
+}) {
   const [sortField, setSortField] = useState('name')
   const [sortDirection, setSortDirection] = useState('asc')
-  const [viewerFile, setViewerFile] = useState(null)
-  const [isViewerOpen, setIsViewerOpen] = useState(false)
+  const [previewFile, setPreviewFile] = useState(null)
 
   const formatFileSize = (bytes) => {
     if (bytes === 0) return '0 Bytes'
@@ -69,7 +75,6 @@ export function FileTableView({ files, folders, onFolderOpen, currentFolder, onL
   const sortItems = (items, type) => {
     return [...items].sort((a, b) => {
       let aValue, bValue
-
       switch (sortField) {
         case 'name':
           aValue = type === 'folder' ? a.name : a.filename
@@ -87,12 +92,10 @@ export function FileTableView({ files, folders, onFolderOpen, currentFolder, onL
         default:
           return 0
       }
-
       if (typeof aValue === 'string') {
         aValue = aValue.toLowerCase()
         bValue = bValue.toLowerCase()
       }
-
       if (sortDirection === 'asc') {
         return aValue < bValue ? -1 : aValue > bValue ? 1 : 0
       } else {
@@ -105,31 +108,65 @@ export function FileTableView({ files, folders, onFolderOpen, currentFolder, onL
   const sortedFiles = sortItems(files, 'file').map(f => ({ ...f, type: 'file' }))
   const allItems = [...sortedFolders, ...sortedFiles]
 
+  const handleSelectAllToggle = () => {
+    if (isAllSelected) {
+      clearSelection()
+    } else {
+      selectAll()
+    }
+  }
+
   const Row = memo(({ rowIndex, style }) => {
     const index = rowIndex
     const item = allItems[index]
     const isFolder = item.type === 'folder'
+    const isSelected = selectedIds?.has(item.id)
+
+    const handleRowClick = (e) => {
+      if (isFolder) return
+      if (toggleSelection) {
+        const multi = e.ctrlKey || e.metaKey
+        const range = e.shiftKey
+        toggleSelection(item.id, multi, range)
+      }
+    }
 
     return (
       <div
         style={style}
-        className="flex items-center px-4 hover:bg-muted/20 border-b border-white/5 transition-colors cursor-pointer select-none"
+        className={`flex items-center px-4 hover:bg-muted/20 border-b border-white/5 transition-colors cursor-pointer select-none ${isSelected ? 'bg-primary/10 dark:bg-primary/15' : ''}`}
+        onClick={handleRowClick}
         onDoubleClick={() => {
           if (isFolder) {
             onFolderOpen?.(item)
-          } else if (item.contentType?.startsWith('image/') && item.downloadURL) {
-            setViewerFile(item)
-            setIsViewerOpen(true)
-          } else if (item.downloadURL) {
-            console.log("Opening file preview:", item.filename)
-            window.open(item.downloadURL, '_blank')
           } else {
-            console.warn("Double click ignored: No download URL for this file", item)
+            setPreviewFile(item)
           }
         }}
       >
+        {/* Checkbox */}
+        <div className="w-[40px] shrink-0 flex items-center justify-center">
+          {!isFolder && (
+            <button
+              className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-150 
+                ${isSelected
+                  ? 'bg-primary border-primary'
+                  : 'border-gray-400 dark:border-gray-600 hover:border-primary'
+                }`}
+              onClick={(e) => {
+                e.stopPropagation()
+                if (toggleSelection) {
+                  toggleSelection(item.id, e.ctrlKey || e.metaKey, e.shiftKey)
+                }
+              }}
+            >
+              {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
+            </button>
+          )}
+        </div>
+
         {/* Icon */}
-        <div className="w-[50px] shrink-0 flex items-center justify-start text-muted-foreground">
+        <div className="w-[40px] shrink-0 flex items-center justify-start text-muted-foreground">
           {isFolder ? (
             <Folder className="w-5 h-5 text-blue-500 dark:text-blue-400 fill-blue-500/20" />
           ) : (
@@ -154,14 +191,12 @@ export function FileTableView({ files, folders, onFolderOpen, currentFolder, onL
 
         {/* Actions */}
         <div className="w-[50px] shrink-0 flex items-center justify-end">
-          <FileActions file={item} type={item.type} onPreview={() => {
-            if (item.contentType?.startsWith('image/')) {
-              setViewerFile(item)
-              setIsViewerOpen(true)
-            } else {
-              if (item.downloadURL) window.open(item.downloadURL, '_blank')
-            }
-          }} />
+          <FileActions
+            file={item}
+            type={item.type}
+            onPreview={() => setPreviewFile(item)}
+            onRefresh={onRefresh}
+          />
         </div>
       </div>
     )
@@ -173,7 +208,26 @@ export function FileTableView({ files, folders, onFolderOpen, currentFolder, onL
       <Card className="h-full border-0 bg-transparent shadow-none flex flex-col">
         {/* Header */}
         <div className="flex items-center px-4 h-12 border-b border-white/10 bg-muted/5 text-xs font-semibold uppercase text-muted-foreground tracking-wider select-none">
-          <div className="w-[50px] shrink-0" />
+          {/* Select All Checkbox */}
+          <div className="w-[40px] shrink-0 flex items-center justify-center">
+            <button
+              onClick={handleSelectAllToggle}
+              className="w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-150 hover:border-primary"
+              title={isAllSelected ? 'Deselect all' : 'Select all'}
+              style={{
+                borderColor: isAllSelected ? 'var(--primary)' : isSomeSelected ? 'var(--primary)' : undefined,
+                backgroundColor: isAllSelected ? 'var(--primary)' : isSomeSelected ? 'var(--primary)' : undefined,
+                opacity: isAllSelected || isSomeSelected ? 1 : 0.5,
+              }}
+            >
+              {isAllSelected ? (
+                <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+              ) : isSomeSelected ? (
+                <div className="w-2 h-0.5 bg-white rounded" />
+              ) : null}
+            </button>
+          </div>
+          <div className="w-[40px] shrink-0" />
           <div className="flex-1 min-w-0">
             <Button
               variant="ghost"
@@ -240,37 +294,31 @@ export function FileTableView({ files, folders, onFolderOpen, currentFolder, onL
         )}
       </Card>
 
-      <ImageViewer
-        isOpen={isViewerOpen}
-        onClose={() => setIsViewerOpen(false)}
-        file={viewerFile}
-        onDelete={async () => {
-          if (!viewerFile) return;
-          if (!confirm(`Move "${viewerFile.name || viewerFile.filename}" to Recycle Bin?`)) return;
-
+      {/* Universal File Preview */}
+      <FilePreviewModal
+        isOpen={!!previewFile}
+        onClose={() => setPreviewFile(null)}
+        file={previewFile}
+        allFiles={files}
+        onNavigate={(f) => setPreviewFile(f)}
+        onDelete={previewFile ? async () => {
           try {
-            const { firestoreService } = await import('@/services/firestoreService');
-            await firestoreService.softDeleteFile(viewerFile.id);
-            // Refresh list via quota update event or similar? 
-            // FileTableView doesn't easy refresh list without props.
-            // But `window.dispatchEvent` helps quota.
-            // Parent `FileList` needs to refresh.
-            // For now, let's just close viewer.
-            setIsViewerOpen(false);
-            window.location.reload(); // Brute force refresh to ensure list verifies. 
-            // Alternatively, we rely on parent refresh.
+            const { firestoreService } = await import('@/services/firestoreService')
+            await firestoreService.softDeleteFile(previewFile.id)
+            setPreviewFile(null)
+            window.dispatchEvent(new CustomEvent('quota:update'))
+            if (onRefresh) onRefresh()
           } catch (e) {
-            console.error(e);
+            console.error(e)
           }
-        }}
+        } : undefined}
       />
     </>
   )
 }
 
-function FileActions({ file, type, onPreview }) {
-  const { showSuccess, showError, showInfo, showLoading } = useNotification()
-
+function FileActions({ file, type, onPreview, onRefresh }) {
+  const { showSuccess, showError, showLoading } = useNotification()
   const { downloadFile, isDownloading } = useDownload()
 
   const handleDownload = async () => {
@@ -278,8 +326,8 @@ function FileActions({ file, type, onPreview }) {
       await downloadFile(file.downloadURL, {
         filename: file.filename || file.name,
         contentType: file.contentType
-      });
-      void usageService.trackBandwidth(file.size);
+      })
+      void usageService.trackBandwidth(file.size)
     }
   }
   const handlePreview = () => {
@@ -296,7 +344,6 @@ function FileActions({ file, type, onPreview }) {
     const toastId = showLoading("Moving to trash...");
 
     try {
-      // Soft Delete
       const { firestoreService } = await import('@/services/firestoreService');
       if (type === 'folder') {
         await firestoreService.softDeleteFolder(file.id);
@@ -304,22 +351,9 @@ function FileActions({ file, type, onPreview }) {
         await firestoreService.softDeleteFile(file.id);
       }
 
-      // 3. Update Quota UI (Technically space isn't freed yet, but good to refresh view)
       window.dispatchEvent(new CustomEvent('quota:update'));
-
-      // 3. Update Quota UI (Technically space isn't freed yet, but good to refresh view)
-
-
-      // Use updateNotification from context
-      // Note: we need to cast toastId to string or number as per type definition if needed, but JS is loose.
-      // updateNotification requires (id, options)
       showSuccess("Item moved to trash", null, { toastId })
-      // specific behavior: I want to UPDATE the loading toast, not just show a new one. 
-      // The provider's showSuccess might just call toast.success which creates a new one or updates if ID matches?
-      // standard react-toastify: toast.success(content, { id: toastId }) UPDATES the existing toast if it exists.
-      // My provider showSuccess: useCallback((title, description, options) => toast.success(..., { ...default, ...options }))
-      // So passing toastId in options SHOULD update it.
-
+      if (onRefresh) onRefresh()
     } catch (error) {
       console.error("Delete failed", error);
       showError("Failed to delete item", null, { toastId });
@@ -329,17 +363,22 @@ function FileActions({ file, type, onPreview }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted/50">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 hover:bg-muted/50"
+          onClick={(e) => e.stopPropagation()}
+        >
           <MoreHorizontal className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="glass-card">
         {type === 'file' && (
           <>
-            <DropdownMenuItem onClick={handlePreview}>
+            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handlePreview() }}>
               <Eye className="mr-2 h-4 w-4" /> Preview
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleDownload}>
+            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDownload() }}>
               <Download className="mr-2 h-4 w-4" /> Download
             </DropdownMenuItem>
           </>
@@ -348,7 +387,7 @@ function FileActions({ file, type, onPreview }) {
           <Edit3 className="mr-2 h-4 w-4" /> Rename
         </DropdownMenuItem>
         <DropdownMenuItem
-          onClick={handleDelete}
+          onClick={(e) => { e.stopPropagation(); handleDelete() }}
           className="text-red-600 dark:text-red-400 focus:bg-red-50 dark:focus:bg-red-900/10"
         >
           <Trash2 className="mr-2 h-4 w-4" /> Delete

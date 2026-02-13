@@ -29,6 +29,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { firestoreService } from '@/services/firestoreService'
 import { storageService } from '@/services/storageService'
 import { useNotification } from '@/components/providers/NotificationProvider'
+import { MobileActions } from '@/components/mobile/MobileActions'
 
 /**
  * @typedef {Object} FolderData
@@ -180,12 +181,59 @@ export const FolderCard = React.memo(function FolderCard({ folder, onOpen }) {
               )}
             </motion.div>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
+            {/* Desktop dropdown — hover-reveal */}
+            <div className="md:block hidden">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 -mr-2 text-muted-foreground/50 hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={(e) => e.stopPropagation()}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <MoreHorizontal className="h-4 w-4" />
+                    )}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48 glass-card">
+                  <DropdownMenuLabel className="text-xs font-normal text-muted-foreground ml-2">Actions</DropdownMenuLabel>
+                  <DropdownMenuItem onClick={handleRename} className="cursor-pointer gap-2">
+                    <Edit3 className="h-4 w-4" /> Rename
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => { }} className="cursor-pointer gap-2">
+                    <Share2 className="h-4 w-4" /> Share
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => { }} className="cursor-pointer gap-2">
+                    <Info className="h-4 w-4" /> Details
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={handleDelete}
+                    className="cursor-pointer text-red-600 dark:text-red-400 gap-2 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950/20"
+                    disabled={isLoading}
+                  >
+                    <Trash2 className="h-4 w-4" /> Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
+            {/* Mobile — always-visible button with bottom-sheet drawer */}
+            <div className="md:hidden block">
+              <MobileActions
+                file={{ filename: folder.name, downloadURL: '', contentType: 'folder' }}
+                onDelete={handleDelete}
+                onRename={handleRename}
+              >
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 -mr-2 text-muted-foreground/50 hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="h-8 w-8 -mr-2 text-muted-foreground"
                   onClick={(e) => e.stopPropagation()}
                   disabled={isLoading}
                 >
@@ -195,29 +243,8 @@ export const FolderCard = React.memo(function FolderCard({ folder, onOpen }) {
                     <MoreHorizontal className="h-4 w-4" />
                   )}
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48 glass-card">
-                <DropdownMenuLabel className="text-xs font-normal text-muted-foreground ml-2">Actions</DropdownMenuLabel>
-                <DropdownMenuItem onClick={handleRename} className="cursor-pointer gap-2">
-                  <Edit3 className="h-4 w-4" /> Rename
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => { }} className="cursor-pointer gap-2">
-                  <Share2 className="h-4 w-4" /> Share
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => { }} className="cursor-pointer gap-2">
-                  <Info className="h-4 w-4" /> Details
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={handleDelete}
-                  className="cursor-pointer text-red-600 dark:text-red-400 gap-2 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950/20"
-                  disabled={isLoading}
-                >
-                  <Trash2 className="h-4 w-4" /> Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+              </MobileActions>
+            </div>
           </div>
 
           {/* Bottom Row: Name + Meta */}

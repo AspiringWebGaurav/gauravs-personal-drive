@@ -11,59 +11,17 @@ interface QuotaInfo {
 /**
  * Check if upload is allowed based on current quota
  */
-export async function guardUpload(file: File, projectId = 'default'): Promise<{ allowed: boolean; message?: string }> {
-  try {
-    const response = await fetch(`/api/quota?projectId=${projectId}`)
-    if (!response.ok) {
-      console.warn('Failed to fetch quota info, allowing upload')
-      return { allowed: true }
-    }
-    
-    const quota: QuotaInfo = await response.json()
-    
-    if (quota.usedBytes + file.size > quota.limitBytes) {
-      const resetDate = new Date(quota.resetAt).toLocaleDateString()
-      return {
-        allowed: false,
-        message: `Free plan quota exceeded. Upload blocked until reset on ${resetDate}. Current usage: ${formatBytes(quota.usedBytes)} / ${formatBytes(quota.limitBytes)}, File size: ${formatBytes(file.size)}`
-      }
-    }
-    
-    return { allowed: true }
-  } catch (error) {
-    console.warn('Error checking quota, allowing upload:', error)
-    return { allowed: true }
-  }
+export async function guardUpload(_file: File, _projectId = 'default'): Promise<{ allowed: boolean; message?: string }> {
+  // No limits — all uploads allowed
+  return { allowed: true }
 }
 
 /**
  * Check if multiple files can be uploaded
  */
-export async function guardMultipleUploads(files: File[], projectId = 'default'): Promise<{ allowed: boolean; message?: string }> {
-  const totalSize = files.reduce((sum, file) => sum + file.size, 0)
-  
-  try {
-    const response = await fetch(`/api/quota?projectId=${projectId}`)
-    if (!response.ok) {
-      console.warn('Failed to fetch quota info, allowing upload')
-      return { allowed: true }
-    }
-    
-    const quota: QuotaInfo = await response.json()
-    
-    if (quota.usedBytes + totalSize > quota.limitBytes) {
-      const resetDate = new Date(quota.resetAt).toLocaleDateString()
-      return {
-        allowed: false,
-        message: `Free plan quota exceeded. Upload blocked until reset on ${resetDate}. Current: ${formatBytes(quota.usedBytes)}, Limit: ${formatBytes(quota.limitBytes)}, Upload: ${formatBytes(totalSize)}`
-      }
-    }
-    
-    return { allowed: true }
-  } catch (error) {
-    console.warn('Error checking quota, allowing upload:', error)
-    return { allowed: true }
-  }
+export async function guardMultipleUploads(_files: File[], _projectId = 'default'): Promise<{ allowed: boolean; message?: string }> {
+  // No limits — all uploads allowed
+  return { allowed: true }
 }
 
 /**

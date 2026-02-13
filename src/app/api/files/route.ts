@@ -20,14 +20,14 @@ async function checkQuotaBeforeUpload(userId: string, fileSize: number) {
   try {
     const quotaRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/quota?projectId=default`)
     const quota = await quotaRes.json()
-    
+
     if (quota.usedBytes + fileSize > quota.limitBytes) {
       return {
         allowed: false,
-        message: `Upload would exceed quota limit. Current: ${Math.round(quota.usedBytes / (1024*1024))}MB, Limit: ${Math.round(quota.limitBytes / (1024*1024))}MB, File: ${Math.round(fileSize / (1024*1024))}MB`
+        message: `Upload would exceed quota limit. Current: ${Math.round(quota.usedBytes / (1024 * 1024))}MB, Limit: ${Math.round(quota.limitBytes / (1024 * 1024))}MB, File: ${Math.round(fileSize / (1024 * 1024))}MB`
       }
     }
-    
+
     return { allowed: true }
   } catch (error) {
     console.warn('Failed to check quota, allowing upload:', error)
@@ -38,12 +38,12 @@ async function checkQuotaBeforeUpload(userId: string, fileSize: number) {
 // Handle file upload validation and server-side processing
 export async function POST(request: NextRequest) {
   console.log('🔥 API DEBUG: POST /api/files called')
-  
+
   try {
     const cookieStore = await cookies()
     const session = cookieStore.get('session')
     const authHeader = request.headers.get('authorization')
-    
+
     console.log('🔑 API DEBUG: Auth check:', {
       hasSession: !!session?.value,
       hasAuthHeader: !!authHeader
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
 
     // Try to get user ID from session cookie or authorization header
     let userId = null
-    
+
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split('Bearer ')[1]
       const verification = await verifyIdToken(token)
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     console.log('📦 API DEBUG: Request body:', body)
-    
+
     const { fileName, fileSize, contentType, storagePath, downloadURL, folderId } = body
 
     // Validate required fields
@@ -83,20 +83,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    // Check quota before allowing upload
+    // Log upload activity (no blocking — unlimited uploads)
     if (userId) {
-      const quotaCheck = await checkQuotaBeforeUpload(userId, fileSize)
-      if (!quotaCheck.allowed) {
-        console.error('❌ API DEBUG: Quota exceeded:', quotaCheck.message)
-        return NextResponse.json({ error: quotaCheck.message }, { status: 413 }) // Payload Too Large
-      }
-
-      // Log upload activity for quota tracking
       await logQuotaActivity(userId, 'upload', fileSize)
     }
 
     console.log('✅ API DEBUG: Upload validation passed')
-    
+
     return NextResponse.json({
       success: true,
       message: 'Upload validated successfully',
@@ -123,10 +116,10 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const folderId = searchParams.get('folderId')
-    
+
     // In a real implementation, you'd verify the session and get the user ID
     // For now, we'll assume the user is authenticated
-    
+
     return NextResponse.json({ message: 'Files retrieved successfully' })
   } catch (error) {
     console.error('Error getting files:', error)

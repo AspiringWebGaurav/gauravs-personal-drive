@@ -526,19 +526,17 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Main fits the rest exactly */}
-      <main className="h-[calc(100svh-56px)] supports-[height:100dvh]:h-[calc(100dvh-56px)] px-3 sm:px-4 py-3 overflow-hidden">
+      {/* Main fits the rest exactly — on mobile subtract both header(56px) + sub-nav(40px) */}
+      <main className="h-[calc(100svh-96px)] sm:h-[calc(100svh-56px)] supports-[height:100dvh]:h-[calc(100dvh-96px)] sm:supports-[height:100dvh]:h-[calc(100dvh-56px)] px-3 sm:px-4 py-3 pb-20 sm:pb-3 overflow-hidden">
         <div className="grid h-full grid-cols-12 gap-3 min-h-0">
           {/* LEFT RAIL */}
           <aside className="hidden lg:grid lg:col-span-3 grid-rows-[1fr_auto] gap-3 min-h-0 overflow-hidden">
-            <section className="rounded-2xl border bg-card p-3 overflow-hidden min-h-0">
-              <div className="h-full min-h-0 overflow-hidden">
-                <UploadArea
-                  currentFolder={currentFolder}
-                  onUploadComplete={handleUploadComplete}
-                  onRegisterTrigger={handleRegisterTrigger}
-                />
-              </div>
+            <section className="rounded-2xl border bg-card p-3 overflow-y-auto no-scrollbar min-h-0">
+              <UploadArea
+                currentFolder={currentFolder}
+                onUploadComplete={handleUploadComplete}
+                onRegisterTrigger={handleRegisterTrigger}
+              />
             </section>
 
             <section className="rounded-2xl border bg-card p-3 overflow-hidden">
