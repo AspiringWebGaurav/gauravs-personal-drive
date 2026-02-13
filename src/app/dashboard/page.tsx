@@ -259,16 +259,10 @@ export default function DashboardPage() {
   // --- UI ---
   if (authLoading || !isTokenReady) {
     return (
-      <div className="fixed inset-0 w-screen overflow-hidden bg-background flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <LoadingSpinner />
-          <p className="text-sm text-muted-foreground">
-            {authLoading
-              ? "Authenticating..."
-              : "Preparing secure connection..."}
-          </p>
-        </div>
-      </div>
+      <LoadingSpinner
+        fullScreen
+        label={authLoading ? "Authenticating..." : "Preparing secure connection..."}
+      />
     );
   }
 

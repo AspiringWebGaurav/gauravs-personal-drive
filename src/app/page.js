@@ -68,12 +68,14 @@ export default function HomePage() {
 
   // Show loading spinner while checking auth state
   if (loading) {
-    return <LoadingSpinner />
+    return <LoadingSpinner fullScreen label="Loading app..." />
   }
 
   // If user is authenticated, they'll be redirected
   if (user) {
-    return <LoadingSpinner />
+    if (user) {
+      return <LoadingSpinner fullScreen label="Redirecting to dashboard..." />
+    }
   }
 
   return (

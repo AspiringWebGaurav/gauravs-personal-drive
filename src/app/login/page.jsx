@@ -18,6 +18,7 @@ import {
     AlertCircle,
     CheckCircle2,
 } from 'lucide-react'
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 
 function LoginContent() {
     const { user, loading: authLoading } = useRedirectIfAuthenticated()
@@ -56,28 +57,11 @@ function LoginContent() {
 
     // Show nothing until mounted to prevent hydration mismatch
     if (!mounted || authLoading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 via-white to-teal-50/30 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
-                <div className="flex flex-col items-center gap-3">
-                    <Loader2 className="w-8 h-8 animate-spin text-teal-500" />
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Loading...</p>
-                </div>
-            </div>
-        )
+        return <LoadingSpinner fullScreen label="Loading..." />
     }
 
-    // If user is already authenticated, show loading while redirecting
     if (user) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 via-white to-teal-50/30 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
-                <div className="flex flex-col items-center gap-3">
-                    <Loader2 className="w-8 h-8 animate-spin text-teal-500" />
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Redirecting to dashboard...
-                    </p>
-                </div>
-            </div>
-        )
+        return <LoadingSpinner fullScreen label="Redirecting to dashboard..." />
     }
 
     const features = [
@@ -325,14 +309,7 @@ function LoginContent() {
 export default function LoginPage() {
     return (
         <Suspense
-            fallback={
-                <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 via-white to-teal-50/30 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
-                    <div className="flex flex-col items-center gap-3">
-                        <Loader2 className="w-8 h-8 animate-spin text-teal-500" />
-                        <p className="text-sm text-gray-500 dark:text-gray-400">Loading...</p>
-                    </div>
-                </div>
-            }
+            fallback={<LoadingSpinner fullScreen label="Loading..." />}
         >
             <LoginContent />
         </Suspense>
