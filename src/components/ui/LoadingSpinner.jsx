@@ -28,10 +28,8 @@ export function LoadingSpinner({ size = 'default', className = '', fullScreen = 
 
   if (fullScreen) {
     return (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-white/80 dark:bg-gray-950/80 backdrop-blur-md">
-        <div className="glass-card p-10 rounded-[2.5rem] border border-white/20 dark:border-gray-800/20 shadow-2xl flex flex-col items-center bg-white/40 dark:bg-gray-900/40">
-          {spinner}
-        </div>
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-white/60 dark:bg-gray-950/60 backdrop-blur-xl">
+        {spinner}
       </div>
     )
   }

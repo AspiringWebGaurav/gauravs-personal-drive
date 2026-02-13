@@ -132,146 +132,138 @@ export function AuthLoadingSpinner({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="glass-card border-blue-200/20 dark:border-blue-800/20 shadow-2xl p-8 max-w-md mx-4 w-full">
-        <div className="flex flex-col items-center space-y-6">
-          {/* App Branding */}
-          <div className="flex items-center space-x-3 mb-2">
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
-              <HardDrive className="h-6 w-6 text-white" />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
-                Gaurav&apos;s Personal Drive
-              </h2>
-            </div>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-white/60 dark:bg-gray-950/60 backdrop-blur-xl">
+      <div className="flex flex-col items-center space-y-8 max-w-md mx-4 w-full">
+        {/* App Branding */}
+        <div className="flex flex-col items-center space-y-4 mb-2">
+          <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-xl">
+            <HardDrive className="h-8 w-8 text-white" />
           </div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+            Gaurav&apos;s Personal Drive
+          </h2>
+        </div>
 
-          {/* Loading Animation */}
-          <div className="relative">
-            <div className="w-16 h-16 relative">
-              <Loader2 className="w-16 h-16 animate-spin text-blue-600 dark:text-blue-400" />
-              <div className="absolute inset-0 rounded-full border-2 border-blue-200 dark:border-blue-800 animate-pulse"></div>
+        {/* Loading Animation */}
+        <div className="relative">
+          <div className="w-20 h-20 relative">
+            <Loader2 className="w-20 h-20 animate-spin text-blue-600 dark:text-blue-400" />
+            <div className="absolute inset-0 rounded-full border-2 border-blue-200 dark:border-blue-800 animate-pulse"></div>
 
-              {/* Timeout indicator */}
-              {isTimedOut && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <AlertTriangle className="w-6 h-6 text-red-500 animate-pulse" />
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Status and Progress */}
-          <div className="text-center w-full space-y-4">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-              {isTimedOut ? 'Sign-in Taking Too Long' : 'Signing you in...'}
-            </h3>
-
-            {showSteps && step && !isTimedOut && (
-              <p className="text-sm text-gray-600 dark:text-gray-300 animate-pulse">
-                {step}
-              </p>
-            )}
-
-            {/* Progress Bar */}
-            <div className="w-full space-y-2">
-              <div className="flex justify-between items-center text-xs text-gray-500 dark:text-gray-400">
-                <span>Progress</span>
-                <span>{formatTime(elapsedTime)}</span>
+            {/* Timeout indicator */}
+            {isTimedOut && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <AlertTriangle className="w-8 h-8 text-red-500 animate-pulse" />
               </div>
-              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
-                <div
-                  className={`h-2 rounded-full transition-all duration-300 ${isTimedOut
-                    ? 'bg-gradient-to-r from-red-500 to-orange-500'
-                    : 'bg-gradient-to-r from-blue-500 to-purple-600'
-                    }`}
-                  style={{ width: `${getProgressPercentage()}%` }}
-                />
-              </div>
-            </div>
-
-            {/* Step Progress */}
-            {showSteps && !isTimedOut && (
-              <div className="space-y-3">
-                {steps.map((stepText, index) => (
-                  <div
-                    key={index}
-                    className={`flex items-center text-xs transition-all duration-300 ${index <= currentStepIndex
-                      ? 'text-blue-600 dark:text-blue-400'
-                      : 'text-gray-400 dark:text-gray-600'
-                      }`}
-                  >
-                    <div
-                      className={`w-2 h-2 rounded-full mr-3 transition-all duration-300 ${index < currentStepIndex
-                        ? 'bg-green-500 scale-110'
-                        : index === currentStepIndex
-                          ? 'bg-blue-600 dark:bg-blue-400 animate-pulse scale-110'
-                          : 'bg-gray-300 dark:bg-gray-600'
-                        }`}
-                    />
-                    <span className={index === currentStepIndex ? 'font-medium' : ''}>
-                      {stepText}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Recovery Options */}
-            {(showRecovery || isTimedOut) && (
-              <div className="space-y-3 pt-4 border-t border-gray-200/50 dark:border-gray-700/50">
-                {isTimedOut && (
-                  <div className="text-center">
-                    <p className="text-sm text-red-600 dark:text-red-400 mb-3">
-                      Authentication timed out. Try one of the options below:
-                    </p>
-                  </div>
-                )}
-
-                <div className="space-y-2">
-                  <Button
-                    onClick={performHardRefresh}
-                    disabled={isPerformingHardRefresh}
-                    size="sm"
-                    className="w-full glass-button bg-orange-500/10 dark:bg-orange-400/10 hover:bg-orange-500/20 dark:hover:bg-orange-400/20 border border-orange-300/30 dark:border-orange-600/30 text-orange-700 dark:text-orange-300"
-                    variant="outline"
-                  >
-                    {isPerformingHardRefresh ? (
-                      <RotateCcw className="w-4 h-4 mr-2 animate-spin" />
-                    ) : (
-                      <RotateCcw className="w-4 h-4 mr-2" />
-                    )}
-                    Hard Refresh
-                  </Button>
-
-                  <Button
-                    onClick={() => window.location.reload()}
-                    size="sm"
-                    className="w-full glass-button bg-gray-500/10 dark:bg-gray-400/10 hover:bg-gray-500/20 dark:hover:bg-gray-400/20 border border-gray-300/30 dark:border-gray-600/30 text-gray-700 dark:text-gray-300"
-                    variant="outline"
-                  >
-                    <HardDrive className="w-4 h-4 mr-2" />
-                    Simple Reload
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {!isTimedOut && (
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                {showRecovery
-                  ? "Having trouble? Try the recovery options above."
-                  : "This may take a few seconds..."
-                }
-              </p>
             )}
           </div>
         </div>
 
-        {/* Floating elements for visual appeal */}
-        <div className="absolute -top-4 -left-4 w-24 h-24 bg-gradient-to-br from-blue-400/20 to-purple-400/20 rounded-full blur-xl"></div>
-        <div className="absolute -bottom-4 -right-4 w-32 h-32 bg-gradient-to-br from-purple-400/20 to-blue-400/20 rounded-full blur-xl"></div>
+        {/* Status and Progress */}
+        <div className="text-center w-full space-y-6">
+          <div className="space-y-2">
+            <h3 className="text-xl font-medium text-gray-900 dark:text-white">
+              {isTimedOut ? 'Sign-in Taking Too Long' : 'Signing you in...'}
+            </h3>
+
+            {showSteps && step && !isTimedOut && (
+              <p className="text-base text-gray-600 dark:text-gray-300 animate-pulse">
+                {step}
+              </p>
+            )}
+          </div>
+
+          {/* Progress Bar */}
+          <div className="w-full space-y-2">
+            <div className="flex justify-between items-center text-sm text-gray-500 dark:text-gray-400">
+              <span>Progress</span>
+              <span>{formatTime(elapsedTime)}</span>
+            </div>
+            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-300 ${isTimedOut
+                  ? 'bg-gradient-to-r from-red-500 to-orange-500'
+                  : 'bg-gradient-to-r from-blue-500 to-purple-600'
+                  }`}
+                style={{ width: `${getProgressPercentage()}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Step Progress */}
+          {showSteps && !isTimedOut && (
+            <div className="space-y-3 pt-2">
+              {steps.map((stepText, index) => (
+                <div
+                  key={index}
+                  className={`flex items-center text-sm transition-all duration-300 ${index <= currentStepIndex
+                    ? 'text-blue-600 dark:text-blue-400'
+                    : 'text-gray-400 dark:text-gray-600'
+                    }`}
+                >
+                  <div
+                    className={`w-2.5 h-2.5 rounded-full mr-4 transition-all duration-300 ${index < currentStepIndex
+                      ? 'bg-green-500 scale-110'
+                      : index === currentStepIndex
+                        ? 'bg-blue-600 dark:bg-blue-400 animate-pulse scale-110'
+                        : 'bg-gray-300 dark:bg-gray-600'
+                      }`}
+                  />
+                  <span className={index === currentStepIndex ? 'font-semibold' : ''}>
+                    {stepText}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Recovery Options */}
+          {(showRecovery || isTimedOut) && (
+            <div className="space-y-4 pt-6 border-t border-gray-200/50 dark:border-gray-700/50">
+              {isTimedOut && (
+                <p className="text-sm text-red-600 dark:text-red-400">
+                  Authentication timed out. Try one of the options below:
+                </p>
+              )}
+
+              <div className="flex flex-col gap-3">
+                <Button
+                  onClick={performHardRefresh}
+                  disabled={isPerformingHardRefresh}
+                  size="lg"
+                  className="w-full h-12 glass-button"
+                  variant="outline"
+                >
+                  {isPerformingHardRefresh ? (
+                    <RotateCcw className="w-5 h-5 mr-3 animate-spin" />
+                  ) : (
+                    <RotateCcw className="w-5 h-5 mr-3" />
+                  )}
+                  Hard Refresh
+                </Button>
+
+                <Button
+                  onClick={() => window.location.reload()}
+                  size="lg"
+                  className="w-full h-12 glass-button"
+                  variant="outline"
+                >
+                  <HardDrive className="w-5 h-5 mr-3" />
+                  Simple Reload
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {!isTimedOut && (
+            <p className="text-sm text-gray-500 dark:text-gray-400 pt-2">
+              {showRecovery
+                ? "Having trouble? Try the recovery options above."
+                : "This may take a few seconds..."
+              }
+            </p>
+          )}
+        </div>
       </div>
     </div>
   )
