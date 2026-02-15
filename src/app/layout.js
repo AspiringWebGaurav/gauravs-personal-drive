@@ -4,6 +4,7 @@ import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { AuthProvider } from "@/components/providers/AuthProvider";
 import { BurnControlProvider } from "@/components/providers/BurnControlProvider";
 import { NotificationProvider } from "@/components/providers/NotificationProvider";
+import { PWAProvider } from "@/components/providers/PWAProvider";
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -29,6 +30,15 @@ export const metadata = {
   authors: [{ name: "Gaurav" }],
   creator: "Gaurav",
   publisher: "Gaurav",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Gaurav Drive",
+  },
+  formatDetection: {
+    telephone: false,
+  },
   robots: {
     index: true,
     follow: true,
@@ -83,52 +93,12 @@ export const viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#0fb9b1" },
-    { media: "(prefers-color-scheme: dark)", color: "#0fb9b1" },
-  ],
+  themeColor: "#0fb9b1",
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
-        <link rel="icon" href="/favicon.ico?v=2" sizes="any" />
-        <link rel="icon" type="image/png" sizes="32x32" href="/icon-32x32.png?v=2" />
-        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=2" />
-        <link rel="manifest" href="/manifest.json?v=2" />
-        <link rel="preload" href="/icon-32x32.png" as="image" type="image/png" />
-        <meta name="theme-color" content="#0fb9b1" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="Gaurav's Personal Drive" />
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              "@context": "https://schema.org",
-              "@graph": [
-                {
-                  "@type": "WebSite",
-                  "name": "Gaurav's Personal Drive",
-                  "url": 'https://gauravs-personal-drive.vercel.app',
-                  "potentialAction": {
-                    "@type": "SearchAction",
-                    "target": 'https://gauravs-personal-drive.vercel.app' + "/search?q={search_term_string}",
-                    "query-input": "required name=search_term_string"
-                  }
-                },
-                {
-                  "@type": "Organization",
-                  "name": "Gaurav's Personal Drive",
-                  "url": 'https://gauravs-personal-drive.vercel.app',
-                  "logo": 'https://gauravs-personal-drive.vercel.app' + "/icon-512x512.png"
-                }
-              ]
-            })
-          }}
-        />
-      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
       >
@@ -139,15 +109,17 @@ export default function RootLayout({ children }) {
           disableTransitionOnChange
         >
           <NotificationProvider>
-            <AuthProvider>
-              <BurnControlProvider>
-                <div className="relative flex min-h-screen flex-col">
-                  <main className="flex-1">
-                    {children}
-                  </main>
-                </div>
-              </BurnControlProvider>
-            </AuthProvider>
+            <PWAProvider>
+              <AuthProvider>
+                <BurnControlProvider>
+                  <div className="relative flex min-h-screen flex-col">
+                    <main className="flex-1">
+                      {children}
+                    </main>
+                  </div>
+                </BurnControlProvider>
+              </AuthProvider>
+            </PWAProvider>
             <ToastContainer
               position="top-right"
               autoClose={2000}

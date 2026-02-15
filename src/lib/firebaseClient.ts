@@ -4,6 +4,7 @@ import { getFirestore } from 'firebase/firestore'
 import { getStorage } from 'firebase/storage'
 import { getDatabase } from 'firebase/database'
 import { getAnalytics } from 'firebase/analytics'
+import { getMessaging, isSupported } from 'firebase/messaging'
 import type { FirebaseConfig } from '@/types'
 import { logger } from '@/lib/logger'
 
@@ -49,6 +50,13 @@ export const auth = getAuth(app)
 export const firestore = getFirestore(app)
 export const storage = getStorage(app)
 export const database = getDatabase(app)
+
+// Initialize Messaging only on client side
+export const messaging = async () => {
+  const supported = await isSupported();
+  return supported ? getMessaging(app) : null;
+};
+
 logger.firebase('Firebase services initialized successfully')
 
 // Initialize Analytics only on client side
