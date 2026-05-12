@@ -62,6 +62,7 @@ const Cell = memo(({ columnIndex, rowIndex, style, items, columnCount, onFolderO
   const isSelected = selectedIds?.has(item.id);
   const selectionMode = selectedIds && selectedIds.size > 0;
   const FileCardAny = FileCard as any;
+  const FolderCardAny = FolderCard as any;
 
   const combinedStyle = {
     ...style,
@@ -77,7 +78,7 @@ const Cell = memo(({ columnIndex, rowIndex, style, items, columnCount, onFolderO
       <div className="w-full h-full">
         {isFolder ? (
           /* @ts-ignore */
-          <FolderCard
+          <FolderCardAny
             folder={item as FolderData}
             onOpen={onFolderOpen}
             isSelected={isSelected}
