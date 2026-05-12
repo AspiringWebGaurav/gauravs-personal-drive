@@ -23,7 +23,8 @@ import {
   FolderOpen,
   Loader2,
   Share2,
-  Info
+  Info,
+  CheckCircle2
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { firestoreService } from '@/services/firestoreService'
@@ -41,7 +42,13 @@ import { MobileActions } from '@/components/mobile/MobileActions'
 /**
  * @param {{ folder: FolderData, onOpen: (folder: FolderData) => void }} props
  */
-export const FolderCard = React.memo(function FolderCard({ folder, onOpen }) {
+export const FolderCard = React.memo(function FolderCard({ 
+  folder, 
+  onOpen,
+  isSelected = false,
+  onSelect,
+  selectionMode = false 
+}) {
   const [isHovered, setIsHovered] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [showRenameDialog, setShowRenameDialog] = useState(false)
@@ -52,9 +59,21 @@ export const FolderCard = React.memo(function FolderCard({ folder, onOpen }) {
   // Unified interaction: double-click (desktop) / double-tap (mobile) to open
   const { handlers } = useInteraction({
     onOpen: () => onOpen(folder),
-    onTap: () => { }, // Handled by framer-motion tap
+    onSelect: (e) => {
+      if (e?.defaultPrevented) return
+      if (onSelect) onSelect(e)
+    },
+    selectionMode,
     disabled: isLoading,
   })
+
+  const handleCheckboxClick = React.useCallback((e) => {
+    e.stopPropagation()
+    e.preventDefault()
+    if (onSelect) onSelect(e)
+  }, [onSelect])
+
+  const showCheckbox = selectionMode || isSelected
 
   const handleRename = () => setShowRenameDialog(true)
 
@@ -143,23 +162,36 @@ export const FolderCard = React.memo(function FolderCard({ folder, onOpen }) {
       whileTap={{ scale: 0.96 }}
       transition={{ type: 'spring', stiffness: 350, damping: 25 }}
       className="h-full"
-    >
-      <Card
-        className={`
-          group relative h-full border-0 bg-white/50 dark:bg-black/20 
-          backdrop-blur-xl shadow-sm hover:shadow-xl dark:shadow-black/40
-          transition-all duration-300 overflow-hidden ring-1 ring-black/5 dark:ring-white/10
-          cursor-pointer select-none
-        `}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-        onClick={handlers.onClick}
-        onTouchEnd={handlers.onTouchEnd}
-        onKeyDown={handlers.onKeyDown}
-        tabIndex={0}
-        role="button"
-        aria-label={`Open folder ${folder.name}`}
       >
+        <Card
+          className={`
+            group relative h-full border-0 bg-white/50 dark:bg-black/20 
+            backdrop-blur-xl shadow-sm hover:shadow-xl dark:shadow-black/40
+            transition-all duration-300 overflow-hidden ring-1 ring-black/5 dark:ring-white/10
+            cursor-pointer select-none
+            ${isSelected ? 'bg-primary/10 dark:bg-primary/15 ring-2 ring-primary' : ''}
+          `}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+          {...handlers}
+          tabIndex={0}
+          role="button"
+          aria-label={`Open folder ${folder.name}`}
+        >
+          {/* Selection Checkbox */}
+          <div className={`absolute top-2 left-2 z-20 transition-all duration-200 ${showCheckbox ? 'opacity-100 scale-100' : 'opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100 md:opacity-0 md:group-hover:opacity-100'}`}>
+            <button
+              className={`w-8 h-8 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full border-2 transition-all duration-150
+                ${isSelected
+                  ? 'bg-primary border-primary shadow-lg shadow-primary/30'
+                  : 'bg-white/80 dark:bg-black/50 border-gray-400 dark:border-gray-500 hover:border-primary'
+                }`}
+              onClick={handleCheckboxClick}
+              aria-label={isSelected ? 'Deselect' : 'Select'}
+            >
+              {isSelected && <CheckCircle2 className="w-5 h-5 text-white" />}
+            </button>
+          </div>
         {/* Decorative gradient blob */}
         <div className="absolute -top-10 -right-10 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl group-hover:bg-blue-500/20 transition-all duration-500" />
 

@@ -77,7 +77,19 @@ const Cell = memo(({ columnIndex, rowIndex, style, items, columnCount, onFolderO
       <div className="w-full h-full">
         {isFolder ? (
           /* @ts-ignore */
-          <FolderCard folder={item as FolderData} onOpen={onFolderOpen} />
+          <FolderCard
+            folder={item as FolderData}
+            onOpen={onFolderOpen}
+            isSelected={isSelected}
+            onSelect={(e: any) => {
+              if (toggleSelection) {
+                const multiSelect = e?.ctrlKey || e?.metaKey;
+                const rangeSelect = e?.shiftKey;
+                toggleSelection(item.id, multiSelect, rangeSelect);
+              }
+            }}
+            selectionMode={selectionMode}
+          />
         ) : (
           /* @ts-ignore */
           <FileCardAny

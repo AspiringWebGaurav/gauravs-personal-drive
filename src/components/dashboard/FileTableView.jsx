@@ -33,6 +33,7 @@ import { usageService } from '@/services/usageService'
 import { useNotification } from '@/components/providers/NotificationProvider'
 import { useDownload } from '@/hooks/useDownload'
 import { FilePreviewModal } from './FilePreviewModal'
+import { useInteraction } from '@/hooks/useInteraction'
 
 export function FileTableView({
   files, folders, onFolderOpen, currentFolder,
@@ -122,27 +123,30 @@ export function FileTableView({
     const isFolder = item.type === 'folder'
     const isSelected = selectedIds?.has(item.id)
 
-    const handleRowClick = (e) => {
-      if (isFolder) return
-      if (toggleSelection) {
-        const multi = e.ctrlKey || e.metaKey
-        const range = e.shiftKey
-        toggleSelection(item.id, multi, range)
-      }
-    }
+    const { handlers } = useInteraction({
+      onOpen: () => {
+        if (isFolder) {
+          onFolderOpen?.(item)
+        } else {
+          setPreviewFile(item)
+        }
+      },
+      onSelect: (e) => {
+        if (isFolder) return
+        if (toggleSelection) {
+          const multi = e?.ctrlKey || e?.metaKey
+          const range = e?.shiftKey
+          toggleSelection(item.id, multi, range)
+        }
+      },
+      selectionMode: selectedIds && selectedIds.size > 0
+    })
 
     return (
       <div
         style={style}
         className={`flex items-center px-4 hover:bg-muted/20 border-b border-white/5 transition-colors cursor-pointer select-none ${isSelected ? 'bg-primary/10 dark:bg-primary/15' : ''}`}
-        onClick={handleRowClick}
-        onDoubleClick={() => {
-          if (isFolder) {
-            onFolderOpen?.(item)
-          } else {
-            setPreviewFile(item)
-          }
-        }}
+        {...handlers}
       >
         {/* Checkbox */}
         <div className="w-[40px] shrink-0 flex items-center justify-center">

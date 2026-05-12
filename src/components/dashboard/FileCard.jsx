@@ -36,6 +36,7 @@ import { firestoreService } from '@/services/firestoreService'
 import { useNotification } from '@/components/providers/NotificationProvider'
 import { MobileActions } from '@/components/mobile/MobileActions'
 import { useDownload } from '@/hooks/useDownload'
+import { useInteraction } from '@/hooks/useInteraction'
 
 // ── Helpers ──────────────────────────────────────────────────────────
 const formatFileSize = (bytes) => {
@@ -115,22 +116,15 @@ export const FileCard = React.memo(function FileCard({
     }
   }
 
-  // ── Click handlers ─────────────────────────────────────────────────
-  const handleCardClick = useCallback((e) => {
-    // If clicking inside dropdown or buttons, don't handle
-    if (e.defaultPrevented) return
-
-    // Always toggle selection on single click (Google Drive behavior)
-    if (onSelect) {
-      onSelect(e)
-    }
-  }, [onSelect])
-
-  const handleDoubleClick = useCallback((e) => {
-    e.preventDefault()
-    e.stopPropagation()
-    openPreview()
-  }, [openPreview])
+  // ── Interactions ───────────────────────────────────────────────────
+  const { handlers } = useInteraction({
+    onOpen: openPreview,
+    onSelect: (e) => {
+      if (e?.defaultPrevented) return
+      if (onSelect) onSelect(e)
+    },
+    selectionMode
+  })
 
   const handleCheckboxClick = useCallback((e) => {
     e.stopPropagation()
@@ -196,8 +190,7 @@ export const FileCard = React.memo(function FileCard({
         whileTap={{ scale: 0.97 }}
         transition={{ type: 'spring', stiffness: 350, damping: 25 }}
         className={`h-full relative group ${isSelected ? 'ring-2 ring-primary rounded-xl' : ''}`}
-        onClick={handleCardClick}
-        onDoubleClick={handleDoubleClick}
+        {...handlers}
       >
         <Card className={`group h-full flex flex-col justify-between border-0 bg-white/40 dark:bg-black/20 backdrop-blur-md shadow-sm hover:shadow-xl dark:shadow-black/40 ring-1 ring-black/5 dark:ring-white/10 overflow-hidden cursor-pointer select-none transition-all ${isSelected ? 'bg-primary/10 dark:bg-primary/15' : ''}`}>
           <div className="flex-1 p-4 pb-2 relative">

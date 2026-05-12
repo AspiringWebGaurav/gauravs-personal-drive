@@ -75,6 +75,7 @@ export function ActionDataBar({ selectedCount, onClearSelection, selectedItems, 
                 animate={{ y: 0, opacity: 1 }}
                 exit={{ y: 100, opacity: 0 }}
                 className="fixed bottom-20 sm:bottom-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-lg px-4"
+                style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
             >
                 <div className="bg-foreground text-background rounded-full shadow-2xl px-6 py-3 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-4">
