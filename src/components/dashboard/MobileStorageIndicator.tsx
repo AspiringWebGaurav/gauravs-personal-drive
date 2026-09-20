@@ -35,7 +35,7 @@ interface MobileStorageIndicatorProps {
 
 export function MobileStorageIndicator({
   projectId = "default",
-  pollMs = 5000,
+  pollMs = 60000,
 }: MobileStorageIndicatorProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [isRecentUpload, setIsRecentUpload] = useState(false);
@@ -46,8 +46,8 @@ export function MobileStorageIndicator({
   // Adaptive polling - less frequent for mobile indicator
   const activePollMs = useMemo(() => {
     if (syncStatus === 'suspended' || syncStatus === 'passive') return 0; // Paused
-    if (isUploading) return 2000;
-    if (isRecentUpload) return 3000;
+    if (isUploading) return 5000;
+    if (isRecentUpload) return 15000;
     return pollMs;
   }, [isUploading, isRecentUpload, pollMs, syncStatus]);
 

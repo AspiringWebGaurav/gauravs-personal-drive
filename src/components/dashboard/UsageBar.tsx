@@ -53,7 +53,7 @@ import { useBurnControl } from "@/components/providers/BurnControlProvider";
 
 export function UsageBar({
   projectId = "default",
-  pollMs = 2000,
+  pollMs = 60000,
 }: UsageBarProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [lastUploadTime, setLastUploadTime] = useState<number>(0);
@@ -69,9 +69,8 @@ export function UsageBar({
     if (syncStatus === 'suspended' || syncStatus === 'passive') return 0; // Pause polling
 
     const dt = Date.now() - lastUploadTime;
-    if (isUploading) return 1000;
-    if (dt < 30000) return 2000;
-    if (dt < 120000) return 5000;
+    if (isUploading) return 5000;
+    if (dt < 30000) return 15000;
     return pollMs;
   }, [isUploading, lastUploadTime, pollMs, syncStatus]);
 
@@ -103,9 +102,6 @@ export function UsageBar({
 
       const refreshPromise = async () => {
         await mutate();
-        await fetch(
-          `/api/quota?projectId=${projectId}&realtime=true&_t=${Date.now()}`
-        ).then((r) => r.json());
       };
 
       await Promise.all([refreshPromise(), minDelay]);
