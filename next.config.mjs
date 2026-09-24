@@ -1,3 +1,5 @@
+process.env.NEXT_TELEMETRY_DISABLED = '1';
+
 import bundleAnalyzer from '@next/bundle-analyzer';
 import withPWAInit from "@ducanh2912/next-pwa";
 
