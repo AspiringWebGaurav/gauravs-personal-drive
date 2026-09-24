@@ -7,6 +7,7 @@ import { NotificationProvider } from "@/components/providers/NotificationProvide
 import { PWAProvider } from "@/components/providers/PWAProvider";
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { getAppUrl } from "@/lib/utils";
 
 
 const geistSans = Geist({
@@ -20,7 +21,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  metadataBase: new URL("https://gauravs-personal-drive.vercel.app"),
+  metadataBase: new URL(getAppUrl()),
   title: {
     default: "Gaurav's Personal Drive",
     template: "%s | Gaurav's Personal Drive"

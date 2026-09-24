@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
+import { useState, useCallback, useEffect, useRef, useMemo, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { useDropzone } from 'react-dropzone'
 import { useAuth } from '@/components/providers/AuthProvider'
@@ -34,15 +34,17 @@ const fmtETA = (s) => {
   if (s < 3600) return `${Math.floor(s / 60)}m ${Math.ceil(s % 60)}s left`
   return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m left`
 }
-const fileIcon = (ct) => {
-  if (!ct) return FileIcon
-  if (ct.startsWith('image/')) return FileImage
-  if (ct.startsWith('video/')) return FileVideo
-  if (ct.startsWith('audio/')) return FileAudio
-  if (/zip|rar|tar|7z|compress/i.test(ct)) return FileArchive
-  if (/pdf|doc|text|sheet|presentation/i.test(ct)) return FileText
-  return FileIcon
+function FileTypeIcon({ type, className }) {
+  if (type?.startsWith('image/')) return <FileImage className={className} />
+  if (type?.startsWith('video/')) return <FileVideo className={className} />
+  if (type?.startsWith('audio/')) return <FileAudio className={className} />
+  if (/zip|rar|tar|7z|compress/i.test(type || '')) return <FileArchive className={className} />
+  if (/pdf|doc|text|sheet|presentation/i.test(type || '')) return <FileText className={className} />
+  return <FileIcon className={className} />
 }
+
+const emptySubscribe = () => () => {}
+const useIsClient = () => useSyncExternalStore(emptySubscribe, () => true, () => false)
 
 /* ═══════════════════════════════════════════════════════════════════════
    CONSTANTS
@@ -335,14 +337,18 @@ export function UploadArea({ currentFolder, onUploadComplete, onRegisterTrigger 
   }, [user, currentFolder, onUploadComplete, logUploadCompletion, showError, showSuccess, removeItem])
 
   /* ─── Queue drainer ────────────────────────────────────────────── */
+  const drainRef = useRef(null)
   const drain = useCallback(() => {
     while (activeN.current < MAX_CONCURRENT && queue.current.length > 0) {
       const item = queue.current.shift()
       if (!item) break
       activeN.current++
-      processOne(item).finally(() => { activeN.current--; drain() })
+      processOne(item).finally(() => { activeN.current--; drainRef.current?.() })
     }
   }, [processOne])
+  useEffect(() => {
+    drainRef.current = drain
+  }, [drain])
 
   /* ─── Cancel / Retry ───────────────────────────────────────────── */
   const cancelOne = useCallback((id) => {
@@ -582,7 +588,6 @@ function ProgressBar({ pct, isPreparing }) {
    ═════════════════════════════════════════════════════════════════════ */
 function UploadRow({ u, onPause, onResume, onRetry, onCancel }) {
   const s = u.status
-  const Icon = fileIcon(u.type)
   const isPreparing = s === 'preparing'
   const isFinalizing = s === 'finalizing'
   const isUploading = s === 'uploading'
@@ -629,7 +634,7 @@ function UploadRow({ u, onPause, onResume, onRetry, onCancel }) {
         ) : isPaused ? (
           <Pause className="w-3.5 h-3.5 text-yellow-500" />
         ) : (
-          <Icon className="w-3.5 h-3.5 text-muted-foreground" />
+          <FileTypeIcon type={u.type} className="w-3.5 h-3.5 text-muted-foreground" />
         )}
       </div>
 
@@ -709,8 +714,7 @@ function UploadRow({ u, onPause, onResume, onRetry, onCancel }) {
    MOBILE FLOATING PANEL — portal to body, visible when sidebar hidden
    ═════════════════════════════════════════════════════════════════════ */
 function MobileFloat({ has, stats, expanded, setExpanded, panel }) {
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
+  const mounted = useIsClient()
   if (!mounted || !has) return null
 
   return createPortal(

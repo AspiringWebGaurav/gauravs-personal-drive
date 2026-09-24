@@ -25,7 +25,7 @@ function nextMonthReset(now = new Date()) {
 // In-memory cache for quota calculations
 const quotaCache = new Map<string, { data: any; expiry: number }>()
 const CACHE_TTL_STANDARD = 60 * 1000 // 60 seconds for standard requests
-const CACHE_TTL_REALTIME = 2 * 1000 // 2 seconds for realtime (prevents instant re-fetch but allows updates)
+const CACHE_TTL_REALTIME = 15 * 1000 // 15 seconds for realtime (prevents repeated calculations during operations)
 
 async function calculateRealTimeUsage(userId?: string | null) {
   const db = getDb()

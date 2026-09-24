@@ -2,29 +2,57 @@ import { NextRequest, NextResponse } from 'next/server'
 import { adminFirestore, adminStorage, verifyIdToken } from '@/lib/firebaseAdmin'
 import { cookies } from 'next/headers'
 
-// Helper function to log quota activity
+// Helper function to log quota activity directly to Firestore (no recursive HTTP fetch)
 async function logQuotaActivity(userId: string, action: 'upload' | 'delete', bytes: number) {
   try {
-    await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/quota/activity`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, action, bytes })
+    const at = new Date()
+    const key = `${at.getUTCFullYear()}-${String(at.getUTCMonth() + 1).padStart(2, '0')}`
+
+    await adminFirestore.collection('usage_events').add({
+      projectId: 'default',
+      userId,
+      action,
+      bytes: Math.max(0, bytes),
+      at,
+      monthKey: key
+    })
+
+    const snapRef = adminFirestore.collection('usage_snapshots').doc(key)
+    await adminFirestore.runTransaction(async (tx) => {
+      const snap = await tx.get(snapRef)
+      let data: any = snap.exists
+        ? snap.data()
+        : { usedPhysicalBytes: 0, deletedBytesAccrued: 0, updatedAt: at }
+
+      if (action === 'upload') {
+        data.usedPhysicalBytes = (data.usedPhysicalBytes || 0) + Math.max(0, bytes)
+      }
+      if (action === 'delete') {
+        data.usedPhysicalBytes = Math.max(0, (data.usedPhysicalBytes || 0) - Math.max(0, bytes))
+        data.deletedBytesAccrued = (data.deletedBytesAccrued || 0) + Math.max(0, bytes)
+      }
+      data.updatedAt = at
+      tx.set(snapRef, data, { merge: true })
     })
   } catch (error) {
-    console.warn('Failed to log quota activity:', error)
+    console.warn('Failed to log quota activity directly:', error)
   }
 }
 
 // Helper function to check quota before upload
 async function checkQuotaBeforeUpload(userId: string, fileSize: number) {
   try {
-    const quotaRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/quota?projectId=default`)
-    const quota = await quotaRes.json()
+    const limitBytes = Number(process.env.FREE_STORAGE_LIMIT_BYTES || 5 * 1024 * 1024 * 1024)
+    const at = new Date()
+    const key = `${at.getUTCFullYear()}-${String(at.getUTCMonth() + 1).padStart(2, '0')}`
+    const snap = await adminFirestore.collection('usage_snapshots').doc(key).get()
+    const data = snap.exists ? snap.data() : { usedPhysicalBytes: 0, deletedBytesAccrued: 0 }
+    const usedBytes = (data?.usedPhysicalBytes || 0) + (data?.deletedBytesAccrued || 0)
 
-    if (quota.usedBytes + fileSize > quota.limitBytes) {
+    if (usedBytes + fileSize > limitBytes) {
       return {
         allowed: false,
-        message: `Upload would exceed quota limit. Current: ${Math.round(quota.usedBytes / (1024 * 1024))}MB, Limit: ${Math.round(quota.limitBytes / (1024 * 1024))}MB, File: ${Math.round(fileSize / (1024 * 1024))}MB`
+        message: `Upload would exceed quota limit. Current: ${Math.round(usedBytes / (1024 * 1024))}MB, Limit: ${Math.round(limitBytes / (1024 * 1024))}MB, File: ${Math.round(fileSize / (1024 * 1024))}MB`
       }
     }
 

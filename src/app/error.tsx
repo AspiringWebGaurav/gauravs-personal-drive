@@ -36,7 +36,7 @@ export default function Error({
                 <div className="space-y-4">
                     <h2 className="text-2xl font-bold text-foreground">Something went wrong!</h2>
                     <p className="text-muted-foreground text-sm">
-                        We encountered an unexpected error. Don't worry, nothing is lost.
+                        We encountered an unexpected error. Don&apos;t worry, nothing is lost.
                     </p>
                     {process.env.NODE_ENV === 'development' && (
                         <p className="text-xs font-mono bg-muted p-2 rounded text-red-500 break-all">

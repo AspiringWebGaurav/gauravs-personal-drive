@@ -53,35 +53,32 @@ import { useBurnControl } from "@/components/providers/BurnControlProvider";
 
 export function UsageBar({
   projectId = "default",
-  pollMs = 60000,
+  pollMs = 0,
 }: UsageBarProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [lastUploadTime, setLastUploadTime] = useState<number>(0);
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
-  const [lastRefreshTime, setLastRefreshTime] = useState<number>(Date.now());
   const [open, setOpen] = useState(false);
   const [animatedProgress, setAnimatedProgress] = useState(0);
 
   const { syncStatus } = useBurnControl();
 
-  // Adaptive polling
+  // Adaptive polling: only poll while actively uploading or recently uploaded; otherwise rely on events
   const activePollMs = useMemo(() => {
     if (syncStatus === 'suspended' || syncStatus === 'passive') return 0; // Pause polling
 
     const dt = Date.now() - lastUploadTime;
     if (isUploading) return 5000;
-    if (dt < 30000) return 15000;
+    if (dt < 30000 && lastUploadTime > 0) return 15000;
     return pollMs;
   }, [isUploading, lastUploadTime, pollMs, syncStatus]);
 
   const { data, mutate, error, isValidating } = useSWR<QuotaData>(
-    `/api/quota?projectId=${projectId}&realtime=true&_t=${Math.floor(
-      lastRefreshTime / 30000
-    )}`,
+    `/api/quota?projectId=${projectId}&realtime=true`,
     fetcher,
     {
       refreshInterval: activePollMs,
-      dedupingInterval: process.env.NODE_ENV === "development" ? 0 : 500,
+      dedupingInterval: 2000,
       revalidateOnFocus: true,
       revalidateOnReconnect: true,
       errorRetryCount: 3,
@@ -98,8 +95,6 @@ export function UsageBar({
     const minDelay = new Promise(resolve => setTimeout(resolve, 800));
 
     try {
-      setLastRefreshTime(Date.now());
-
       const refreshPromise = async () => {
         await mutate();
       };

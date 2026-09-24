@@ -25,7 +25,12 @@ export const usePWA = () => {
 export function PWAProvider({ children }: { children: React.ReactNode }) {
     const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
     const [isInstallable, setIsInstallable] = useState(false);
-    const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+    const [notificationsEnabled, setNotificationsEnabled] = useState(() => {
+        if (typeof window !== 'undefined' && 'Notification' in window) {
+            return Notification.permission === 'granted';
+        }
+        return false;
+    });
     const { showInfo, showSuccess, showError } = useNotification();
 
     useEffect(() => {
@@ -38,11 +43,6 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
         };
 
         window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
-        // Initial check for notification permission
-        if ('Notification' in window) {
-            setNotificationsEnabled(Notification.permission === 'granted');
-        }
 
         return () => {
             window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);

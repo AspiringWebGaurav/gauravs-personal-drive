@@ -155,7 +155,7 @@ export function useFolderData(userId: string | undefined, folderId: string | nul
             cleanupPolling();
         };
 
-    }, [userId, folderId, syncStatus]); // Dependencies: Re-run when status changes
+    }, [userId, folderId, syncStatus, fetchData]); // Dependencies: Re-run when status changes
 
     // We need to manage `extraFiles` to support pagination while Active.
     // The active listener only gives us the first 50 files.

@@ -26,7 +26,7 @@ export default function NotFound() {
                     </h1>
                     <h2 className="text-2xl font-semibold text-foreground">Page Not Found</h2>
                     <p className="text-muted-foreground">
-                        The file or folder you're looking for seems to have vanished into the digital void.
+                        The file or folder you&apos;re looking for seems to have vanished into the digital void.
                     </p>
                 </div>
 

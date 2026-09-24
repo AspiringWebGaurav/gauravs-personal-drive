@@ -42,13 +42,15 @@ export function useInteraction(options: UseInteractionOptions): {
   const longPressFiredRef = useRef(false)
   
   // Track if we are on a touch device
-  const [isTouch, setIsTouch] = useState(false)
+  const [isTouch, setIsTouch] = useState(() => {
+    if (typeof window !== 'undefined' && window.matchMedia) {
+      return window.matchMedia('(pointer: coarse)').matches
+    }
+    return false
+  })
 
   useEffect(() => {
-    // Detect coarse pointer (touch) on mount
     const mediaQuery = window.matchMedia('(pointer: coarse)')
-    setIsTouch(mediaQuery.matches)
-    
     const handler = (e: MediaQueryListEvent) => setIsTouch(e.matches)
     mediaQuery.addEventListener('change', handler)
     return () => mediaQuery.removeEventListener('change', handler)

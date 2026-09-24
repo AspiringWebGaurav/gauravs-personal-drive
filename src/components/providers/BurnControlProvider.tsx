@@ -21,8 +21,8 @@ export function BurnControlProvider({ children }: { children: React.ReactNode })
     const { user, signOut } = useAuth()
     const [isIdle, setIsIdle] = useState(false)
     const [isSleeping, setIsSleeping] = useState(false)
-    const [isVisible, setIsVisible] = useState(true) // Default to visible
-    const [isOnline, setIsOnline] = useState(true)   // Default to online
+    const [isVisible, setIsVisible] = useState(() => typeof document !== 'undefined' ? document.visibilityState === 'visible' : true)
+    const [isOnline, setIsOnline] = useState(() => typeof navigator !== 'undefined' ? navigator.onLine : true)
 
     // Timers
     const idleTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -38,20 +38,20 @@ export function BurnControlProvider({ children }: { children: React.ReactNode })
         return 'active'
     })()
 
-    const resetTimer = useCallback(() => {
-        if (isSleeping) return
-
-        // Wake up if idle
-        if (isIdle) {
-            setIsIdle(false)
-            logger.info('BurnControl: Waking up from Idle')
+    const handleSleep = useCallback(async () => {
+        if (!user) return
+        try {
+            await signOut()
+            window.location.href = '/login?reason=timeout'
+        } catch (error) {
+            logger.error('BurnControl: Auto-logout failed', error)
         }
+    }, [user, signOut])
 
-        // Clear existing timers
+    const startTimers = useCallback(() => {
         if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
         if (sleepTimerRef.current) clearTimeout(sleepTimerRef.current)
 
-        // Set new timers
         idleTimerRef.current = setTimeout(() => {
             setIsIdle(true)
             logger.info('BurnControl: Entering Idle Mode (Pausing polls)')
@@ -62,17 +62,21 @@ export function BurnControlProvider({ children }: { children: React.ReactNode })
             logger.info('BurnControl: Entering Sleep Mode (Auto-Logout)')
             handleSleep()
         }, SLEEP_TIMEOUT_MS)
-    }, [isIdle, isSleeping])
+    }, [handleSleep])
 
-    const handleSleep = async () => {
-        if (!user) return
-        try {
-            await signOut()
-            window.location.href = '/login?reason=timeout'
-        } catch (error) {
-            logger.error('BurnControl: Auto-logout failed', error)
-        }
-    }
+    const resetTimer = useCallback(() => {
+        if (isSleeping) return
+
+        setIsIdle(prev => {
+            if (prev) {
+                logger.info('BurnControl: Waking up from Idle')
+                return false
+            }
+            return prev
+        })
+
+        startTimers()
+    }, [isSleeping, startTimers])
 
     // Activity listeners
     useEffect(() => {
@@ -120,12 +124,8 @@ export function BurnControlProvider({ children }: { children: React.ReactNode })
         window.addEventListener('online', handleOnline)
         window.addEventListener('offline', handleOffline)
 
-        // Set initial states
-        setIsVisible(document.visibilityState === 'visible')
-        setIsOnline(navigator.onLine)
-
         // Initial start
-        resetTimer()
+        startTimers()
 
         return () => {
             events.forEach(event => {
@@ -142,7 +142,7 @@ export function BurnControlProvider({ children }: { children: React.ReactNode })
             if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
             if (sleepTimerRef.current) clearTimeout(sleepTimerRef.current)
         }
-    }, [user, resetTimer])
+    }, [user, resetTimer, startTimers])
 
     return (
         <BurnControlContext.Provider value={{ isIdle, isSleeping, resetTimer, syncStatus }}>

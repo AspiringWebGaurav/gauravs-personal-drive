@@ -104,7 +104,7 @@ export function useDownload() {
                 return next;
             });
         }
-    }, [downloading, showSuccess, showWarning, showError, showLoading, updateNotification]);
+    }, [downloading, showSuccess, showError, showLoading, updateNotification]);
 
     return {
         downloadFile,

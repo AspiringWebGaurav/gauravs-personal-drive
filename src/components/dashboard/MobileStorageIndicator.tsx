@@ -35,15 +35,14 @@ interface MobileStorageIndicatorProps {
 
 export function MobileStorageIndicator({
   projectId = "default",
-  pollMs = 60000,
+  pollMs = 0,
 }: MobileStorageIndicatorProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [isRecentUpload, setIsRecentUpload] = useState(false);
-  const [lastRefreshTime, setLastRefreshTime] = useState<number>(() => Date.now());
   const [modalOpen, setModalOpen] = useState(false);
   const { syncStatus } = useBurnControl()
 
-  // Adaptive polling - less frequent for mobile indicator
+  // Adaptive polling - only while uploading or recent upload
   const activePollMs = useMemo(() => {
     if (syncStatus === 'suspended' || syncStatus === 'passive') return 0; // Paused
     if (isUploading) return 5000;
@@ -52,13 +51,11 @@ export function MobileStorageIndicator({
   }, [isUploading, isRecentUpload, pollMs, syncStatus]);
 
   const { data, mutate, error } = useSWR<QuotaData>(
-    `/api/quota?projectId=${projectId}&realtime=true&_t=${Math.floor(
-      lastRefreshTime / 30000
-    )}`,
+    `/api/quota?projectId=${projectId}&realtime=true`,
     fetcher,
     {
       refreshInterval: activePollMs,
-      dedupingInterval: 1000,
+      dedupingInterval: 2000,
       revalidateOnFocus: false,
       revalidateOnReconnect: true,
       errorRetryCount: 2,
@@ -176,7 +173,6 @@ export function MobileStorageIndicator({
         error={error}
         isUploading={isUploading}
         onRefresh={() => {
-          setLastRefreshTime(Date.now());
           mutate();
         }}
       />
